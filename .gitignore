@@ -1,17 +1,63 @@
+# ╔══════════════════════════════════════════════════╗
+# ║  Aegis Hotspot Vault — .gitignore                ║
+# ║  CRITICAL: private keys & vault files NEVER push ║
+# ╚══════════════════════════════════════════════════╝
+
+# ── CRITICAL: Cryptographic Secrets ────────────────────────────
+*.pem                   # RSA private & public keys — NEVER commit
+*.vault                 # Encrypted vault files     — NEVER commit
+*.key                   # Any raw key files
+
+# ── Vault output directory ──────────────────────────────────────
+shared_vault/           # Local vault store — excluded entirely
+
+# ── Python ─────────────────────────────────────────────────────
 __pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+pip-log.txt
+pip-delete-this-directory.txt
 
-# ----------------------------------------------------
-# SECURITY BEST PRACTICE: Zero-Knowledge Principle
-# ----------------------------------------------------
-# NEVER commit private keys (.pem files) or encrypted 
-# vault binaries (.vault) to GitHub. The security of 
-# the RSA asymmetric cryptography relies exclusively on 
-# keeping the private key locally and strictly off-grid.
-# Pushing these to version control constitutes a severe leak.
-*.pem
-*.vault
+# ── Virtual environments ────────────────────────────────────────
+venv/
+.venv/
+env/
+.env/
+ENV/
 
-# Ignore locally downloaded or decrypted files
-*.decrypted
-downloaded_*
-demo_*
+# ── Environment variables ───────────────────────────────────────
+.env
+.env.*
+*.env
+
+# ── OS junk ────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── IDE / Editor ────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── Streamlit cache ─────────────────────────────────────────────
+.streamlit/
+
+# ── Logs ────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ── Temporary files ─────────────────────────────────────────────
+tmp/
+temp/
+*.tmp
+*.bak
