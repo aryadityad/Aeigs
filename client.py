@@ -74,11 +74,15 @@ def _decrypt_vault(vault_bytes: bytes, priv_key_path: str) -> bytes:
     if magic != VAULT_MAGIC:
         raise ValueError("Not a valid Aegis vault file.")
 
-    offset      = 9   # magic(8) + version(1)
-    wrapped_key = vault_bytes[offset : offset + RSA_BLOCK_SIZE]; offset += RSA_BLOCK_SIZE
-    nonce       = vault_bytes[offset : offset + NONCE_SIZE];     offset += NONCE_SIZE
-    tag         = vault_bytes[offset : offset + TAG_SIZE];       offset += TAG_SIZE
-    ciphertext  = vault_bytes[offset:]
+    offset        = 9   # magic(8) + version(1)
+    fname_len     = int.from_bytes(vault_bytes[offset:offset+2], "big"); offset += 2
+    original_name = vault_bytes[offset:offset+fname_len].decode("utf-8"); offset += fname_len
+    wrapped_key   = vault_bytes[offset : offset + RSA_BLOCK_SIZE]; offset += RSA_BLOCK_SIZE
+    nonce         = vault_bytes[offset : offset + NONCE_SIZE];     offset += NONCE_SIZE
+    tag           = vault_bytes[offset : offset + TAG_SIZE];       offset += TAG_SIZE
+    ciphertext    = vault_bytes[offset:]
+
+    log.info("Original filename : %s", original_name)
 
     log.info("Nonce      : %s", nonce.hex())
     log.info("Auth Tag   : %s", tag.hex())
@@ -91,7 +95,7 @@ def _decrypt_vault(vault_bytes: bytes, priv_key_path: str) -> bytes:
     cipher_aes = AES.new(aes_key, AES.MODE_GCM, nonce=nonce, mac_len=TAG_SIZE)
     plaintext  = cipher_aes.decrypt_and_verify(ciphertext, tag)
     log.info("GCM auth tag verified ✔")
-    return plaintext
+    return plaintext, original_name
 
 
 # ── FTP Download ───────────────────────────────────────────────
@@ -186,7 +190,7 @@ def main():
     # Decrypt
     print(f"\n[*] Decrypting {selected} …")
     try:
-        plaintext = _decrypt_vault(vault_bytes, PRIV_KEY_PATH)
+        plaintext, original_name = _decrypt_vault(vault_bytes, PRIV_KEY_PATH)
     except ValueError as exc:
         print(f"[✘] Decryption failed (authentication error): {exc}")
         sys.exit(1)
@@ -194,18 +198,61 @@ def main():
         print(f"[✘] Decryption error: {exc}")
         sys.exit(1)
 
-    # Save output
+    # Save output — use original filename embedded in vault
     Path(OUTPUT_DIR).mkdir(parents=True, exist_ok=True)
-    stem     = Path(selected).stem
-    out_path = Path(OUTPUT_DIR) / f"{stem}.dec"
+    out_path = Path(OUTPUT_DIR) / original_name
     out_path.write_bytes(plaintext)
 
-    print(f"\n[✔] Decrypted file saved:")
+    print(f"\n[✔] File decrypted and saved as original name:")
     print(f"    {out_path}")
     print(f"    Size: {len(plaintext)} bytes")
     print("\n" + "═" * 52)
     print("   Secure transfer complete. ✔")
-    print("═" * 52 + "\n")
+    print("═" * 52)
+
+    # ── Detect file type for friendly messaging ───────────────
+    import subprocess
+    ext = out_path.suffix.lower()
+    FILE_TYPE_LABELS = {
+        ".pdf"  : "PDF document",
+        ".png"  : "PNG image",
+        ".jpg"  : "JPEG image",
+        ".jpeg" : "JPEG image",
+        ".gif"  : "GIF image",
+        ".webp" : "WebP image",
+        ".mp4"  : "MP4 video",
+        ".mkv"  : "MKV video",
+        ".mp3"  : "MP3 audio",
+        ".wav"  : "WAV audio",
+        ".txt"  : "text file",
+        ".docx" : "Word document",
+        ".xlsx" : "Excel spreadsheet",
+        ".pptx" : "PowerPoint presentation",
+        ".zip"  : "ZIP archive",
+        ".apk"  : "Android APK",
+    }
+    file_label = FILE_TYPE_LABELS.get(ext, f"{ext.lstrip('.').upper()} file" if ext else "file")
+
+    # ── Open prompt ───────────────────────────────────────────
+    try:
+        answer = input("\n    Open file now? [Y/N]: ").strip().lower()
+        if answer == "y":
+            print(f"    Opening {file_label}: {out_path.name} …")
+            result = subprocess.run(
+                ["termux-open", str(out_path)],
+                capture_output=True, text=True
+            )
+            if result.returncode != 0:
+                print(f"    [!] termux-open failed.")
+                print(f"    Open manually: Files → Downloads → aegis_out → {out_path.name}")
+            else:
+                print(f"    {file_label.capitalize()} opened successfully. ✔")
+        else:
+            print(f"\n    {file_label.capitalize()} saved. Open it anytime:")
+            print(f"    Files app → Downloads → aegis_out → {out_path.name}")
+    except KeyboardInterrupt:
+        print("\n    Skipped.")
+    print()
 
 
 if __name__ == "__main__":
