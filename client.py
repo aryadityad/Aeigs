@@ -11,70 +11,148 @@ Run on Android / Termux:
 Requirements (install inside Termux):
     pkg install python
     pip install pycryptodome
-
-The script:
-  1. Connects to the laptop hotspot gateway via FTP.
-  2. Lists .vault files available on the server.
-  3. Downloads the selected vault to ~/storage/downloads/.
-  4. Decrypts it using the bundled RSA private key.
 """
 
 import os
 import sys
+import time
 import ftplib
-import logging
+import subprocess
 from pathlib import Path
 
 from Crypto.PublicKey import RSA
 from Crypto.Cipher    import AES, PKCS1_OAEP
 
-# ── Config (edit these if your hotspot IP / creds change) ──────
-SERVER_IP   = "192.168.137.1"     # Windows hotspot default gateway
-SERVER_PORT = 2121
-FTP_USER    = "aryaditya"
-FTP_PASS    = "5056"
-
-# Where the private key lives on the phone
+# ── Config ─────────────────────────────────────────────────────
+SERVER_IP     = "192.168.137.1"
+SERVER_PORT   = 2121
+FTP_USER      = "aryaditya"
+FTP_PASS      = "5056"
 PRIV_KEY_PATH = os.path.expanduser("~/private.pem")
+OUTPUT_DIR    = os.path.expanduser("~/storage/downloads/aegis_out")
 
-# Where decrypted output goes
-OUTPUT_DIR  = os.path.expanduser("~/storage/downloads/aegis_out")
-
-# Vault format constants (must match crypto_core.py)
+# Vault format constants
 VAULT_MAGIC    = b"AEGISVLT"
 RSA_BLOCK_SIZE = 256
 NONCE_SIZE     = 16
 TAG_SIZE       = 16
 
-# ── Logging ────────────────────────────────────────────────────
-logging.basicConfig(
-    level  = logging.INFO,
-    format = "[%(asctime)s] %(levelname)s %(message)s",
-    datefmt= "%H:%M:%S",
-)
-log = logging.getLogger("aegis.client")
+# ── ANSI colour helpers ────────────────────────────────────────
+def _c(code: str, text: str) -> str:
+    """Wrap text in an ANSI colour code."""
+    CODES = {
+        "cyan"   : "\033[96m",
+        "green"  : "\033[92m",
+        "yellow" : "\033[93m",
+        "red"    : "\033[91m",
+        "blue"   : "\033[94m",
+        "magenta": "\033[95m",
+        "white"  : "\033[97m",
+        "dim"    : "\033[2m",
+        "bold"   : "\033[1m",
+        "reset"  : "\033[0m",
+    }
+    return f"{CODES.get(code, '')}{text}\033[0m"
+
+def _box(lines: list, color: str = "cyan", width: int = 54) -> str:
+    """Render a box around a list of strings."""
+    top    = _c(color, "╔" + "═" * width + "╗")
+    bottom = _c(color, "╚" + "═" * width + "╝")
+    rows   = []
+    for line in lines:
+        # strip existing ANSI for length measurement
+        import re
+        clean = re.sub(r'\033\[[0-9;]*m', '', line)
+        pad   = width - len(clean) - 2
+        rows.append(_c(color, "║") + " " + line + " " * max(pad, 0) + _c(color, "║"))
+    return "\n".join([top] + rows + [bottom])
+
+def _fmt_bytes(n: int) -> str:
+    if n >= 1_048_576: return f"{n/1_048_576:.2f} MB"
+    if n >= 1024:      return f"{n/1024:.1f} KB"
+    return f"{n} B"
+
+def _fmt_speed(bps: float) -> str:
+    if bps >= 1_048_576: return f"{bps/1_048_576:.2f} MB/s"
+    if bps >= 1024:      return f"{bps/1024:.1f} KB/s"
+    return f"{bps:.0f} B/s"
+
+def _fmt_eta(secs: float) -> str:
+    if secs < 0 or secs > 3600: return "--:--"
+    m, s = divmod(int(secs), 60)
+    return f"{m:02d}:{s:02d}"
 
 
-# ── Helpers ────────────────────────────────────────────────────
+# ── Animated banner ────────────────────────────────────────────
+def _banner():
+    os.system("clear")
+    lines = [
+        "",
+        _c("cyan",  "bold") + "  ╔═══════════════════════════════════════════════════╗",
+        _c("cyan",  "")     + "  ║" + _c("bold", _c("white", "    🛡️  AEGIS HOTSPOT VAULT — SECURE CLIENT    ")) + _c("cyan", "║"),
+        _c("cyan",  "")     + "  ║" + _c("dim",  "       Aryaditya Deshmukh · 23BCE5056 · VIT       ") + _c("cyan", "║"),
+        _c("cyan",  "")     + "  ╚═══════════════════════════════════════════════════╝",
+        "",
+    ]
+    print("\n".join(lines))
 
-def _progress_bar(transferred: int, total: int, width: int = 40):
-    """ASCII progress bar for Termux terminal."""
-    pct   = transferred / total if total else 0
-    filled = int(width * pct)
-    bar   = "█" * filled + "░" * (width - filled)
-    sys.stdout.write(f"\r  [{bar}]  {pct*100:5.1f}%  {transferred/1024:.1f} KB")
+
+# ── Status line helpers ────────────────────────────────────────
+def _status(icon: str, msg: str, color: str = "white"):
+    print(f"  {icon}  {_c(color, msg)}")
+
+def _ok(msg: str):      _status(_c("green",  "✔"), msg, "green")
+def _info(msg: str):    _status(_c("cyan",   "◆"), msg, "white")
+def _warn(msg: str):    _status(_c("yellow", "⚠"), msg, "yellow")
+def _err(msg: str):     _status(_c("red",    "✘"), msg, "red")
+def _step(n: int, total: int, msg: str):
+    tag = _c("magenta", f"[{n}/{total}]")
+    print(f"\n  {tag}  {_c('bold', msg)}")
+
+
+# ── Live progress bar with speed + ETA ────────────────────────
+def _live_progress(transferred: int, total: int,
+                   start_time: float, bar_width: int = 36):
+    elapsed = time.time() - start_time or 0.001
+    speed   = transferred / elapsed
+    pct     = transferred / total if total else 0
+    filled  = int(bar_width * pct)
+    eta     = (total - transferred) / speed if speed > 0 and total else 0
+
+    bar     = _c("green",  "█" * filled) + _c("dim", "░" * (bar_width - filled))
+    pct_str = _c("bold",   f"{pct*100:5.1f}%")
+    spd_str = _c("yellow", _fmt_speed(speed))
+    eta_str = _c("cyan",   f"ETA {_fmt_eta(eta)}")
+    sz_str  = _c("dim",    f"{_fmt_bytes(transferred)} / {_fmt_bytes(total)}")
+
+    line = f"\r  [{bar}] {pct_str}  {spd_str}  {eta_str}  {sz_str}   "
+    sys.stdout.write(line)
     sys.stdout.flush()
     if transferred >= total:
         print()
 
 
-def _decrypt_vault(vault_bytes: bytes, priv_key_path: str) -> bytes:
-    """Full RSA-AES vault decryption. Returns plaintext bytes."""
-    magic   = vault_bytes[:8]
-    if magic != VAULT_MAGIC:
-        raise ValueError("Not a valid Aegis vault file.")
+# ── Crypto stage animator ──────────────────────────────────────
+CRYPTO_STAGES = [
+    ("RSA-OAEP",  "Unwrapping AES session key with private key"),
+    ("AES-GCM",   "Decrypting ciphertext"),
+    ("AUTH TAG",  "Verifying 128-bit authentication tag"),
+    ("ASSEMBLE",  "Writing decrypted file to storage"),
+]
 
-    offset        = 9   # magic(8) + version(1)
+def _animate_stage(idx: int, label: str, detail: str, done: bool = False):
+    icon  = _c("green", "✔") if done else _c("yellow", "⟳")
+    tag   = _c("cyan" if not done else "green", f"[{label:<10}]")
+    print(f"  {icon}  {tag}  {_c('dim', detail)}")
+
+
+# ── Vault decryption ───────────────────────────────────────────
+def _decrypt_vault(vault_bytes: bytes, priv_key_path: str):
+    magic = vault_bytes[:8]
+    if magic != VAULT_MAGIC:
+        raise ValueError("Not a valid Aegis vault (bad magic bytes).")
+
+    offset        = 9
     fname_len     = int.from_bytes(vault_bytes[offset:offset+2], "big"); offset += 2
     original_name = vault_bytes[offset:offset+fname_len].decode("utf-8"); offset += fname_len
     wrapped_key   = vault_bytes[offset : offset + RSA_BLOCK_SIZE]; offset += RSA_BLOCK_SIZE
@@ -82,176 +160,203 @@ def _decrypt_vault(vault_bytes: bytes, priv_key_path: str) -> bytes:
     tag           = vault_bytes[offset : offset + TAG_SIZE];       offset += TAG_SIZE
     ciphertext    = vault_bytes[offset:]
 
-    log.info("Original filename : %s", original_name)
+    print()
+    for i, (label, detail) in enumerate(CRYPTO_STAGES):
+        _animate_stage(i + 1, label, detail, done=False)
 
-    log.info("Nonce      : %s", nonce.hex())
-    log.info("Auth Tag   : %s", tag.hex())
+    # Slight delay so each stage is visible during demo
+    time.sleep(0.3)
 
+    # RSA unwrap
     priv_key   = RSA.import_key(Path(priv_key_path).read_bytes())
     cipher_rsa = PKCS1_OAEP.new(priv_key)
     aes_key    = cipher_rsa.decrypt(wrapped_key)
-    log.info("AES key    : %s…", aes_key.hex()[:32])
 
+    time.sleep(0.2)
+
+    # AES-GCM decrypt
     cipher_aes = AES.new(aes_key, AES.MODE_GCM, nonce=nonce, mac_len=TAG_SIZE)
     plaintext  = cipher_aes.decrypt_and_verify(ciphertext, tag)
-    log.info("GCM auth tag verified ✔")
-    return plaintext, original_name
+
+    # Redraw stages as done
+    print(f"\033[{len(CRYPTO_STAGES)}A", end="")   # move cursor up
+    for i, (label, detail) in enumerate(CRYPTO_STAGES):
+        _animate_stage(i + 1, label, detail, done=True)
+
+    return plaintext, original_name, aes_key, nonce, tag
 
 
-# ── FTP Download ───────────────────────────────────────────────
-
-def list_vaults(ftp: ftplib.FTP) -> list[str]:
-    """Return list of .vault filenames on the server."""
-    files = ftp.nlst()
-    return [f for f in files if f.endswith(".vault")]
+# ── FTP helpers ────────────────────────────────────────────────
+def _list_vaults(ftp: ftplib.FTP) -> list:
+    return [f for f in ftp.nlst() if f.endswith(".vault")]
 
 
-def download_vault(ftp: ftplib.FTP, filename: str) -> bytes:
-    """Stream-download a vault file with a progress bar."""
-    try:
-        total = ftp.size(filename)
-    except Exception:
-        total = 0
+def _download_vault(ftp: ftplib.FTP, filename: str) -> bytes:
+    try:    total = ftp.size(filename)
+    except: total = 0
 
     chunks      = []
     transferred = 0
+    start       = time.time()
 
     def _collect(chunk: bytes):
         nonlocal transferred
         chunks.append(chunk)
         transferred += len(chunk)
-        if total:
-            _progress_bar(transferred, total)
+        _live_progress(transferred, total, start)
 
-    log.info("Downloading: %s  (%d bytes)", filename, total)
     ftp.retrbinary(f"RETR {filename}", _collect, blocksize=8192)
-    return b"".join(chunks)
+    elapsed = time.time() - start or 0.001
+    return b"".join(chunks), elapsed
+
+
+# ── File type labels ───────────────────────────────────────────
+FILE_LABELS = {
+    ".pdf": "PDF document", ".png": "PNG image",
+    ".jpg": "JPEG image",   ".jpeg": "JPEG image",
+    ".gif": "GIF image",    ".webp": "WebP image",
+    ".mp4": "MP4 video",    ".mkv": "MKV video",
+    ".mp3": "MP3 audio",    ".wav": "WAV audio",
+    ".txt": "text file",    ".docx": "Word document",
+    ".xlsx": "Excel spreadsheet", ".pptx": "PowerPoint",
+    ".zip": "ZIP archive",  ".apk": "Android APK",
+}
 
 
 # ── Main ───────────────────────────────────────────────────────
-
 def main():
-    print("\n" + "═" * 52)
-    print("   🛡️  AEGIS HOTSPOT VAULT — TERMUX CLIENT")
-    print("═" * 52)
+    _banner()
 
-    # Check private key
+    # ── Check private key ──────────────────────────────────────
+    _step(1, 5, "Checking credentials")
     if not Path(PRIV_KEY_PATH).exists():
-        print(f"\n❌  Private key not found at: {PRIV_KEY_PATH}")
-        print("    Copy private.pem to your phone and update PRIV_KEY_PATH.")
+        _err(f"Private key not found: {PRIV_KEY_PATH}")
+        _warn("Copy private.pem to your phone first.")
         sys.exit(1)
+    _ok(f"Private key found  →  {PRIV_KEY_PATH}")
 
-    # Connect
-    print(f"\n[*] Connecting to {SERVER_IP}:{SERVER_PORT} …")
+    # ── FTP connect ────────────────────────────────────────────
+    _step(2, 5, f"Connecting to {SERVER_IP}:{SERVER_PORT}")
     try:
         ftp = ftplib.FTP()
         ftp.connect(SERVER_IP, SERVER_PORT, timeout=10)
         ftp.login(FTP_USER, FTP_PASS)
-        print(f"[✔] Connected  — {ftp.getwelcome()}")
+        _ok(f"Connected  ·  user={FTP_USER}  ·  {SERVER_IP}:{SERVER_PORT}")
     except Exception as exc:
-        print(f"[✘] FTP connection failed: {exc}")
+        _err(f"FTP connection failed: {exc}")
         sys.exit(1)
 
-    # List vaults
-    vaults = list_vaults(ftp)
+    # ── List vaults ────────────────────────────────────────────
+    _step(3, 5, "Scanning vault directory")
+    vaults = _list_vaults(ftp)
     if not vaults:
-        print("\n[!] No .vault files found on server.")
+        _warn("No .vault files found on server.")
+        _info("Encrypt a file on the laptop first, then retry.")
         ftp.quit()
         sys.exit(0)
 
-    print("\n[*] Available vaults:")
+    print()
+    print(_c("dim", "  " + "─" * 50))
+    print(f"  {_c('bold', 'Available Vaults')}   {_c('dim', f'({len(vaults)} found)')}")
+    print(_c("dim", "  " + "─" * 50))
     for i, v in enumerate(vaults):
-        print(f"    [{i}] {v}")
+        try:    sz = _fmt_bytes(ftp.size(v))
+        except: sz = "?"
+        print(f"  {_c('cyan', f'[{i}]')}  {_c('white', v):<40} {_c('dim', sz)}")
+    print(_c("dim", "  " + "─" * 50))
 
-    # Select
     if len(vaults) == 1:
         choice = 0
+        print(f"\n  {_c('dim', 'Auto-selected:')}  {_c('green', vaults[0])}")
     else:
         try:
-            choice = int(input("\n    Select index: "))
+            raw    = input(f"\n  {_c('yellow', '▶')}  Select vault index: ")
+            choice = int(raw.strip())
         except (ValueError, KeyboardInterrupt):
-            print("\n[!] Aborted.")
+            print()
+            _warn("Aborted.")
             ftp.quit()
             sys.exit(0)
 
     if choice not in range(len(vaults)):
-        print("[✘] Invalid selection.")
+        _err("Invalid selection.")
         ftp.quit()
         sys.exit(1)
 
     selected = vaults[choice]
 
-    # Download
+    # ── Download ───────────────────────────────────────────────
+    _step(4, 5, f"Downloading  →  {selected}")
     print()
-    vault_bytes = download_vault(ftp, selected)
+    vault_bytes, elapsed = _download_vault(ftp, selected)
     ftp.quit()
-    print(f"[✔] Downloaded {len(vault_bytes)} bytes")
 
-    # Decrypt
-    print(f"\n[*] Decrypting {selected} …")
+    total_bytes = len(vault_bytes)
+    avg_speed   = total_bytes / elapsed if elapsed else 0
+    print()
+    _ok(f"Download complete  ·  {_fmt_bytes(total_bytes)}  ·  avg {_fmt_speed(avg_speed)}  ·  {elapsed:.2f}s")
+
+    # ── Decrypt ────────────────────────────────────────────────
+    _step(5, 5, "Decrypting vault")
     try:
-        plaintext, original_name = _decrypt_vault(vault_bytes, PRIV_KEY_PATH)
+        plaintext, original_name, aes_key, nonce, tag = \
+            _decrypt_vault(vault_bytes, PRIV_KEY_PATH)
     except ValueError as exc:
-        print(f"[✘] Decryption failed (authentication error): {exc}")
+        print()
+        _err(f"Authentication failed — vault may be tampered: {exc}")
         sys.exit(1)
     except Exception as exc:
-        print(f"[✘] Decryption error: {exc}")
+        print()
+        _err(f"Decryption error: {exc}")
         sys.exit(1)
 
-    # Save output — use original filename embedded in vault
+    # ── Save file ──────────────────────────────────────────────
     Path(OUTPUT_DIR).mkdir(parents=True, exist_ok=True)
     out_path = Path(OUTPUT_DIR) / original_name
     out_path.write_bytes(plaintext)
 
-    print(f"\n[✔] File decrypted and saved as original name:")
-    print(f"    {out_path}")
-    print(f"    Size: {len(plaintext)} bytes")
-    print("\n" + "═" * 52)
-    print("   Secure transfer complete. ✔")
-    print("═" * 52)
+    ext        = out_path.suffix.lower()
+    file_label = FILE_LABELS.get(ext, f"{ext.lstrip('.').upper()} file" if ext else "file")
 
-    # ── Detect file type for friendly messaging ───────────────
-    import subprocess
-    ext = out_path.suffix.lower()
-    FILE_TYPE_LABELS = {
-        ".pdf"  : "PDF document",
-        ".png"  : "PNG image",
-        ".jpg"  : "JPEG image",
-        ".jpeg" : "JPEG image",
-        ".gif"  : "GIF image",
-        ".webp" : "WebP image",
-        ".mp4"  : "MP4 video",
-        ".mkv"  : "MKV video",
-        ".mp3"  : "MP3 audio",
-        ".wav"  : "WAV audio",
-        ".txt"  : "text file",
-        ".docx" : "Word document",
-        ".xlsx" : "Excel spreadsheet",
-        ".pptx" : "PowerPoint presentation",
-        ".zip"  : "ZIP archive",
-        ".apk"  : "Android APK",
-    }
-    file_label = FILE_TYPE_LABELS.get(ext, f"{ext.lstrip('.').upper()} file" if ext else "file")
+    # ── Summary box ────────────────────────────────────────────
+    print()
+    print(_c("dim", "  " + "─" * 50))
+    print(f"  {_c('bold', _c('green', '✔  SECURE TRANSFER COMPLETE'))}")
+    print(_c("dim", "  " + "─" * 50))
+    print(f"  {'File':<18}  {_c('white',  original_name)}")
+    print(f"  {'Type':<18}  {_c('cyan',   file_label)}")
+    print(f"  {'Size':<18}  {_c('yellow', _fmt_bytes(len(plaintext)))}")
+    print(f"  {'Transfer speed':<18}  {_c('yellow', _fmt_speed(avg_speed))}")
+    print(f"  {'Transfer time':<18}  {_c('dim',    f'{elapsed:.2f}s')}")
+    print(f"  {'AES key (hex)':<18}  {_c('dim',    aes_key.hex()[:24] + '…')}")
+    print(f"  {'GCM nonce':<18}  {_c('dim',    nonce.hex()[:24] + '…')}")
+    print(f"  {'Auth tag':<18}  {_c('dim',    tag.hex())}")
+    print(f"  {'Saved to':<18}  {_c('dim',    str(out_path))}")
+    print(_c("dim", "  " + "─" * 50))
 
-    # ── Open prompt ───────────────────────────────────────────
+    # ── Open prompt ────────────────────────────────────────────
     try:
-        answer = input("\n    Open file now? [Y/N]: ").strip().lower()
+        prompt = f"\n  {_c('yellow', '▶')}  Open {file_label} now? {_c('dim', '[Y/N]')}: "
+        answer = input(prompt).strip().lower()
+        print()
         if answer == "y":
-            print(f"    Opening {file_label}: {out_path.name} …")
+            _info(f"Launching {file_label}: {out_path.name} …")
             result = subprocess.run(
                 ["termux-open", str(out_path)],
                 capture_output=True, text=True
             )
             if result.returncode != 0:
-                print(f"    [!] termux-open failed.")
-                print(f"    Open manually: Files → Downloads → aegis_out → {out_path.name}")
+                _warn("termux-open failed. Open manually:")
+                _info(f"Files → Downloads → aegis_out → {out_path.name}")
             else:
-                print(f"    {file_label.capitalize()} opened successfully. ✔")
+                _ok(f"{file_label.capitalize()} opened successfully.")
         else:
-            print(f"\n    {file_label.capitalize()} saved. Open it anytime:")
-            print(f"    Files app → Downloads → aegis_out → {out_path.name}")
+            _info(f"{file_label.capitalize()} saved. Open anytime:")
+            _info(f"Files → Downloads → aegis_out → {out_path.name}")
     except KeyboardInterrupt:
-        print("\n    Skipped.")
+        print()
+        _warn("Skipped.")
+
     print()
 
 
