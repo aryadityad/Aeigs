@@ -1,54 +1,40 @@
-<div align="center">
+# 🛡️ Aegis Hotspot Vault
 
-```
- █████╗ ███████╗ ██████╗ ██╗███████╗
-██╔══██╗██╔════╝██╔════╝ ██║██╔════╝
-███████║█████╗  ██║  ███╗██║███████╗
-██╔══██║██╔══╝  ██║   ██║██║╚════██║
-██║  ██║███████╗╚██████╔╝██║███████║
-╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═╝╚══════╝
-     H O T S P O T   V A U L T
-```
+### RSA-2048 · AES-256-GCM · Offline-First Secure Bubble
 
-**RSA-2048 · AES-256-GCM · Offline-First Secure Bubble**
+> Encrypt on your laptop. Transfer over hotspot. Decrypt on Android. Zero internet. Zero trust required.
 
-*Encrypt on your laptop. Transfer over hotspot. Decrypt on Android. Zero internet. Zero trust required.*
-
----
-
-[![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?style=flat-square&logo=python&logoColor=white)](https://python.org)
-[![Streamlit](https://img.shields.io/badge/Streamlit-1.35%2B-FF4B4B?style=flat-square&logo=streamlit&logoColor=white)](https://streamlit.io)
-[![PyCryptodome](https://img.shields.io/badge/PyCryptodome-AES--256--GCM-4CAF50?style=flat-square)](https://pycryptodome.readthedocs.io)
-[![pyftpdlib](https://img.shields.io/badge/pyftpdlib-FTP%20Server-0078D4?style=flat-square)](https://pyftpdlib.readthedocs.io)
-[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20Android-FF9800?style=flat-square)](.)
-[![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](.)
+![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?style=flat-square&logo=python&logoColor=white)
+![Streamlit](https://img.shields.io/badge/Streamlit-1.35%2B-FF4B4B?style=flat-square&logo=streamlit&logoColor=white)
+![PyCryptodome](https://img.shields.io/badge/PyCryptodome-AES--256--GCM-4CAF50?style=flat-square)
+![pyftpdlib](https://img.shields.io/badge/pyftpdlib-FTP%20Server-0078D4?style=flat-square)
+![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20Android-FF9800?style=flat-square)
+![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
 
 **[Aryaditya Deshmukh](https://github.com/aryadityad/) · Reg: 23BCE5056 · VIT Chennai**
-
-</div>
 
 ---
 
 ## Table of Contents
 
-1. [Project Overview](#-project-overview)
-2. [Motivation & Use Case](#-motivation--use-case)
-3. [System Architecture](#-system-architecture)
-4. [Cryptographic Design](#-cryptographic-design)
-5. [Vault File Format](#-vault-file-format)
-6. [Repository Structure](#-repository-structure)
-7. [Component Breakdown](#-component-breakdown)
-8. [Quick Start](#-quick-start)
-9. [Detailed Setup Guide](#-detailed-setup-guide)
-10. [Termux Mobile Setup](#-termux-mobile-setup)
-11. [CLI Reference](#-cli-reference)
-12. [Configuration](#-configuration)
-13. [Security Analysis](#-security-analysis)
-14. [Threat Model](#-threat-model)
-15. [Dependencies](#-dependencies)
-16. [Known Limitations](#-known-limitations)
-17. [Future Improvements](#-future-improvements)
-18. [Academic Context](#-academic-context)
+1. [Project Overview](#project-overview)
+2. [Motivation & Use Case](#motivation--use-case)
+3. [System Architecture](#system-architecture)
+4. [Cryptographic Design](#cryptographic-design)
+5. [Vault File Format](#vault-file-format)
+6. [Repository Structure](#repository-structure)
+7. [Component Breakdown](#component-breakdown)
+8. [Quick Start](#quick-start)
+9. [Detailed Setup Guide](#detailed-setup-guide)
+10. [Termux Mobile Setup](#termux-mobile-setup)
+11. [CLI Reference](#cli-reference)
+12. [Configuration](#configuration)
+13. [Security Analysis](#security-analysis)
+14. [Threat Model](#threat-model)
+15. [Dependencies](#dependencies)
+16. [Known Limitations](#known-limitations)
+17. [Future Improvements](#future-improvements)
+18. [Academic Context](#academic-context)
 
 ---
 
@@ -65,24 +51,27 @@ Every file is sealed inside a `.vault` container using a **hybrid encryption sch
 ## Motivation & Use Case
 
 ### The Problem
+
 Conventional file transfer methods — email, cloud storage, Bluetooth — all involve either a third-party server, plaintext transmission, or weak link-layer encryption. For sensitive documents, this is unacceptable.
 
 ### The Solution
+
 Aegis creates an ephemeral, self-contained secure network:
 
 ```
   Internet ──────────────── BLOCKED
                                 │
-  ┌─────────────────────────────▼─────────────────────────────┐
-  │                    SECURE BUBBLE                           │
-  │                                                           │
+  ┌─────────────────────────────▼──────────────────────────────┐
+  │                      SECURE BUBBLE                         │
+  │                                                            │
   │   Laptop  ←──── Wi-Fi Hotspot ────→  Android Phone        │
-  │  (Server)       192.168.137.x        (Termux Client)      │
-  │                                                           │
-  └───────────────────────────────────────────────────────────┘
+  │  (Server)        192.168.137.x        (Termux Client)      │
+  │                                                            │
+  └────────────────────────────────────────────────────────────┘
 ```
 
 ### Who Is This For?
+
 - Students and researchers transferring sensitive academic documents
 - Professionals sharing confidential files in field environments
 - Security enthusiasts learning applied cryptography
@@ -96,40 +85,35 @@ Aegis creates an ephemeral, self-contained secure network:
 ┌──────────────────────────────────────────────────────────────┐
 │                      LAPTOP  (Host)                          │
 │                                                              │
-│  ┌──────────────┐   encrypt_file()   ┌───────────────────┐  │
-│  │   app.py     │──────────────────▶│  crypto_core.py   │  │
-│  │  Streamlit   │                    │                   │  │
-│  │  Dashboard   │◀── progress_cb() ──│  RSA-2048 OAEP   │  │
-│  │              │                    │  AES-256-GCM      │  │
-│  │  • Upload    │                    │  Vault Assembly   │  │
-│  │  • Pipeline  │                    └────────┬──────────┘  │
-│  │  • Hex Log   │                             │ .vault      │
-│  └──────────────┘                    ┌────────▼──────────┐  │
-│                                      │   shared_vault/   │  │
-│                                      │   directory       │  │
-│                                      └────────┬──────────┘  │
-│  ┌──────────────┐                             │             │
-│  │  server.py   │◀────────────────────────────┘             │
-│  │  pyftpdlib   │                                           │
-│  │  :2121       │                                           │
+│  ┌──────────────┐    encrypt_file()   ┌──────────────────┐  │
+│  │   app.py     │ ─────────────────▶  │ crypto_core.py   │  │
+│  │  Streamlit   │                     │                  │  │
+│  │  Dashboard   │ ◀── progress_cb() ─ │  RSA-2048 OAEP   │  │
+│  │              │                     │  AES-256-GCM     │  │
+│  │  • Upload    │                     │  Vault Assembly  │  │
+│  │  • Pipeline  │                     └────────┬─────────┘  │
+│  │  • Hex Log   │                              │ .vault     │
+│  └──────────────┘                     ┌────────▼─────────┐  │
+│                                       │  shared_vault/   │  │
+│                                       └────────┬─────────┘  │
+│  ┌──────────────┐                              │            │
+│  │  server.py   │ ◀────────────────────────────┘            │
+│  │  FTP :2121   │                                           │
 │  └──────┬───────┘                                           │
 └─────────┼────────────────────────────────────────────────────┘
-          │  Wi-Fi Hotspot  192.168.137.0/24
-          │  FTP (port 2121)
+          │  Wi-Fi Hotspot · 192.168.137.0/24 · FTP port 2121
 ┌─────────▼────────────────────────────────────────────────────┐
 │                   ANDROID  (Termux Client)                   │
 │                                                              │
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │  client.py                                           │   │
-│  │  1. FTP connect → 192.168.137.1:2121                 │   │
-│  │  2. List & select .vault files                       │   │
-│  │  3. Stream download with progress bar                │   │
-│  │  4. Parse vault header → extract original filename   │   │
-│  │  5. RSA OAEP unwrap → recover AES session key        │   │
-│  │  6. AES-256-GCM decrypt + verify 128-bit auth tag    │   │
-│  │  7. Save with original filename and extension        │   │
-│  │  8. Prompt → termux-open                             │   │
-│  └──────────────────────────────────────────────────────┘   │
+│  client.py                                                   │
+│  1.  FTP connect  →  192.168.137.1:2121                      │
+│  2.  List & select .vault files                              │
+│  3.  Stream download  (ASCII progress bar)                   │
+│  4.  Parse vault header  →  extract original filename        │
+│  5.  RSA OAEP unwrap  →  recover AES session key             │
+│  6.  AES-256-GCM decrypt  +  verify 128-bit auth tag         │
+│  7.  Save with original filename and extension               │
+│  8.  Prompt  →  termux-open                                  │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -137,7 +121,7 @@ Aegis creates an ephemeral, self-contained secure network:
 
 ## Cryptographic Design
 
-Aegis uses a **hybrid encryption scheme**, combining the security guarantees of asymmetric RSA with the performance of symmetric AES.
+Aegis uses a **hybrid encryption scheme** combining the security of asymmetric RSA with the performance of symmetric AES.
 
 ### Why Hybrid Encryption?
 
@@ -145,42 +129,31 @@ Aegis uses a **hybrid encryption scheme**, combining the security guarantees of 
 |-----------|----------|----------|
 | RSA-2048 alone | Strong key exchange | Too slow for large files |
 | AES-256 alone | Very fast | Key distribution problem |
-| **RSA + AES (hybrid)** | **Best of both** | **None at this scale** |
+| **RSA + AES hybrid** | **Best of both** | **None at this scale** |
 
 ### Encryption Flow
 
 ```
-┌─────────────┐
-│  Plaintext  │
-│   File      │
-└──────┬──────┘
-       │
-       ▼
-┌──────────────────────────────────────────────────┐
-│  Stage 1 — KEY GEN                               │
-│  Generate random 256-bit AES session key         │
-│  os.urandom(32)  →  aes_key                      │
-└──────────────────┬───────────────────────────────┘
-                   ▼
-┌──────────────────────────────────────────────────┐
-│  Stage 2 — RSA WRAP                              │
-│  Encrypt aes_key with recipient's RSA public key │
-│  PKCS1_OAEP.encrypt(aes_key)  →  wrapped_key     │
-│  Output: 256 bytes                               │
-└──────────────────┬───────────────────────────────┘
-                   ▼
-┌──────────────────────────────────────────────────┐
-│  Stage 3 — AES-256-GCM ENCRYPT                   │
-│  Encrypt file with session key                   │
-│  AES.new(aes_key, MODE_GCM, nonce=nonce)         │
-│  encrypt_and_digest(plaintext)                   │
-│  Output: ciphertext + 128-bit auth tag           │
-└──────────────────┬───────────────────────────────┘
-                   ▼
-┌──────────────────────────────────────────────────┐
-│  Stage 4 — VAULT ASSEMBLY                        │
-│  Concatenate all components → .vault file        │
-└──────────────────────────────────────────────────┘
+Plaintext File
+      │
+      ▼
+[Stage 1 — KEY GEN]
+  Generate random 256-bit AES session key
+  get_random_bytes(32)  →  aes_key
+      │
+      ▼
+[Stage 2 — RSA WRAP]
+  Encrypt aes_key with recipient's RSA public key
+  PKCS1_OAEP.encrypt(aes_key)  →  wrapped_key  (256 bytes)
+      │
+      ▼
+[Stage 3 — AES-256-GCM ENCRYPT]
+  AES.new(aes_key, MODE_GCM, nonce=nonce)
+  encrypt_and_digest(plaintext)  →  ciphertext + 128-bit auth tag
+      │
+      ▼
+[Stage 4 — VAULT ASSEMBLY]
+  Write binary vault file → .vault
 ```
 
 ### Algorithm Specifications
@@ -201,22 +174,20 @@ Aegis uses a **hybrid encryption scheme**, combining the security guarantees of 
 
 The `.vault` binary format is purpose-built for this project:
 
-```
-Offset    Size        Field               Description
-──────    ────        ─────               ───────────
-0         8 bytes     Magic               ASCII "AEGISVLT" — file identifier
-8         1 byte      Version             Format version (0x01)
-9         2 bytes     Filename Length     Big-endian uint16 — original filename length
-11        N bytes     Original Filename   UTF-8 encoded (e.g. "report.pdf")
-11+N      256 bytes   Wrapped AES Key     RSA-2048 OAEP encrypted AES-256 session key
-267+N     16 bytes    Nonce               AES-GCM nonce (random, unique per file)
-283+N     16 bytes    Auth Tag            GCM authentication tag (128-bit)
-299+N     variable    Ciphertext          AES-256-GCM encrypted file content
-```
+| Offset | Size | Field | Description |
+|--------|------|-------|-------------|
+| 0 | 8 bytes | Magic | ASCII `AEGISVLT` — file identifier |
+| 8 | 1 byte | Version | Format version `0x01` |
+| 9 | 2 bytes | Filename Length | Big-endian uint16 |
+| 11 | N bytes | Original Filename | UTF-8 encoded (e.g. `report.pdf`) |
+| 11+N | 256 bytes | Wrapped AES Key | RSA-2048 OAEP encrypted AES session key |
+| 267+N | 16 bytes | Nonce | AES-GCM nonce, random per file |
+| 283+N | 16 bytes | Auth Tag | GCM authentication tag (128-bit) |
+| 299+N | variable | Ciphertext | AES-256-GCM encrypted file content |
 
-**Total fixed overhead per vault:** `8 + 1 + 2 + 256 + 16 + 16 = 299 bytes` + filename length
+**Fixed overhead per vault:** 299 bytes + filename length
 
-This compact, self-describing format ensures the vault is fully self-contained — the receiver needs only `private.pem` and `client.py` to recover the original file with its correct name and extension, with no out-of-band metadata required.
+This self-describing format means the receiver only needs `private.pem` and `client.py` — no out-of-band metadata required.
 
 ---
 
@@ -225,33 +196,13 @@ This compact, self-describing format ensures the vault is fully self-contained �
 ```
 aegis-hotspot-vault/
 │
-├── crypto_core.py       Cryptographic engine
-│                        RSA-2048 OAEP + AES-256-GCM
-│                        Vault format read/write
-│                        Progress callback hooks for UI
-│                        Standalone CLI interface
-│
-├── app.py               Streamlit web dashboard
-│                        Drag-and-drop file uploader
-│                        Animated 4-stage pipeline visualizer
-│                        Live hex inspector (key, nonce, tag)
-│                        Vault metrics panel
-│                        Sidebar RSA key management
-│
-├── server.py            pyftpdlib FTP server
-│                        Binds to 0.0.0.0:2121
-│                        Serves ./shared_vault/
-│                        Full session audit logging
-│
-├── client.py            Termux Android client
-│                        FTP download with ASCII progress bar
-│                        Full RSA-AES vault decryption
-│                        Original filename restoration
-│                        termux-open integration
-│
-├── requirements.txt     Python package dependencies with versions
-├── .gitignore           Strictly blocks *.pem and *.vault from git
-└── README.md            This file
+├── crypto_core.py      Cryptographic engine (RSA + AES, vault read/write, CLI)
+├── app.py              Streamlit dashboard (pipeline visualizer, hex inspector)
+├── server.py           pyftpdlib FTP server (0.0.0.0:2121, audit logging)
+├── client.py           Termux Android client (download, decrypt, open)
+├── requirements.txt    Python dependencies
+├── .gitignore          Blocks *.pem and *.vault from git
+└── README.md           This file
 ```
 
 ---
@@ -262,24 +213,21 @@ aegis-hotspot-vault/
 
 The heart of the project. Implements all cryptographic operations using **PyCryptodome**.
 
-**Key functions:**
+Key functions:
 
 ```python
 generate_rsa_keypair(key_dir)
-# Generates RSA-2048 keypair, saves public.pem + private.pem
-# Returns: (public_key_path, private_key_path)
+# Generates RSA-2048 keypair → public.pem + private.pem
 
 encrypt_file(plaintext_path, public_key_path, output_dir, progress_cb)
-# Full 4-stage encryption pipeline with optional UI callback
-# Returns: (vault_path, metadata_dict)
+# Full 4-stage pipeline. Returns (vault_path, metadata_dict)
 # metadata: aes_key_hex, rsa_pub_hex, nonce_hex, tag_hex, sizes
 
 decrypt_vault(vault_path, private_key_path, output_dir)
-# Parses vault, RSA-unwraps AES key, GCM-decrypts and verifies
-# Returns: path to recovered plaintext file
+# Parses vault, unwraps AES key, decrypts and verifies
 ```
 
-The `progress_cb(stage_name)` callback is fired at the start of each stage (`KEY_GEN`, `RSA_WRAP`, `AES_ENCRYPT`, `VAULT_ASSEMBLY`), allowing `app.py` to animate the pipeline in real time.
+The `progress_cb(stage_name)` callback fires at each stage — `KEY_GEN`, `RSA_WRAP`, `AES_ENCRYPT`, `VAULT_ASSEMBLY` — allowing `app.py` to animate the pipeline in real time.
 
 ---
 
@@ -287,12 +235,12 @@ The `progress_cb(stage_name)` callback is fired at the start of each stage (`KEY
 
 A dark-themed web UI that makes the cryptographic pipeline visible and educational.
 
-**Pipeline stage animation:**
+**Pipeline animation:**
 
 ```
 [ KEY_GEN ] → [ RSA_WRAP ] → [ AES_ENCRYPT ] → [ VAULT_ASSEMBLY ]
   pending        pending          pending             pending
-     ↓ run clicked
+     ↓  (on run)
   active         pending          pending             pending
      ↓
   done ✔        active           pending             pending
@@ -302,22 +250,18 @@ A dark-themed web UI that makes the cryptographic pipeline visible and education
   done ✔        done ✔          done ✔             done ✔
 ```
 
-**Live Hex Inspector** displays:
-- AES-256 session key (32 bytes, full hex)
-- RSA-2048 public modulus (truncated to 48 bytes for display)
-- GCM nonce (16 bytes)
-- GCM auth tag (16 bytes)
+**Live Hex Inspector** shows the raw AES session key, RSA public modulus (truncated), GCM nonce, and auth tag — making the math tangible.
 
 ---
 
 ### `server.py` — Localized FTP Server
 
 ```
-Host    : 0.0.0.0  (reachable from any hotspot client)
-Port    : 2121     (non-privileged, no root needed)
-User    : aryaditya
-Pass    : 5056
-Serves  : ./shared_vault/
+Host   :  0.0.0.0    (reachable from any hotspot client)
+Port   :  2121       (non-privileged, no root required)
+User   :  aryaditya
+Pass   :  5056
+Serves :  ./shared_vault/
 ```
 
 Subclasses `FTPHandler` with a custom `AuditHandler` that logs every connect, login attempt, file transfer, and logout with timestamp and source IP.
@@ -326,16 +270,16 @@ Subclasses `FTPHandler` with a custom `AuditHandler` that logs every connect, lo
 
 ### `client.py` — Termux Android Client
 
-Designed for minimal dependencies and terminal-friendly output. Execution flow:
+Designed for minimal dependencies and terminal-friendly output.
 
 1. Validate `~/private.pem` exists
 2. FTP connect to `192.168.137.1:2121`
-3. List `.vault` files — auto-select if only one
-4. Stream download with real-time ASCII progress bar
-5. Parse vault binary header → extract embedded original filename
+3. List `.vault` files — auto-select if only one exists
+4. Stream download with ASCII progress bar
+5. Parse vault header → extract embedded original filename
 6. RSA-OAEP unwrap AES session key using private key
-7. AES-256-GCM decrypt + verify auth tag (raises on tamper)
-8. Write file with original name and extension
+7. AES-256-GCM decrypt + verify auth tag (raises on any tampering)
+8. Write file with its original name and extension
 9. Prompt `Open file now? [Y/N]` → `termux-open` on Y
 
 ---
@@ -344,21 +288,21 @@ Designed for minimal dependencies and terminal-friendly output. Execution flow:
 
 ```bash
 # 1. Clone
-git clone https://github.com/aryadityad/aegis-hotspot-vault.git
-cd aegis-hotspot-vault
+git clone https://github.com/aryadityad/Aeigs.git
+cd Aeigs
 
-# 2. Install dependencies
+# 2. Install
 pip install -r requirements.txt
 
 # 3. Generate RSA keypair
 python crypto_core.py genkeys
 
-# 4. Terminal 1 — Start FTP server
+# 4. Terminal 1 — FTP server
 python server.py
 
-# 5. Terminal 2 — Launch dashboard
+# 5. Terminal 2 — Dashboard
 python -m streamlit run app.py
-# Open http://localhost:8501
+# Visit http://localhost:8501
 ```
 
 ---
@@ -371,8 +315,8 @@ python -m streamlit run app.py
 |-------------|---------|-------|
 | Python | 3.11+ | 3.10 minimum |
 | pip | latest | `python -m pip install --upgrade pip` |
-| Windows | 10/11 | For Mobile Hotspot feature |
-| Android | 8.0+ | For Termux compatibility |
+| Windows | 10/11 | For Mobile Hotspot |
+| Android | 8.0+ | For Termux |
 
 ### Step 1 — Install Dependencies
 
@@ -386,13 +330,14 @@ pip install -r requirements.txt
 python crypto_core.py genkeys --dir .
 ```
 
-Produces:
+This produces:
+
 ```
-public.pem    ← safe to keep in project (used to encrypt)
-private.pem   ← SECRET — transfer to phone, never commit to git
+public.pem    ←  safe to keep in project (used to encrypt)
+private.pem   ←  SECRET — transfer to phone, never commit to git
 ```
 
-> **Warning:** `private.pem` is your only decryption key. Back it up securely. It is blocked from git by `.gitignore`.
+> ⚠️ `private.pem` is your only decryption key. If lost, all vaults are permanently unrecoverable. It is blocked from git by `.gitignore`.
 
 ### Step 3 — Enable Windows Mobile Hotspot
 
@@ -414,7 +359,7 @@ python server.py
 python -m streamlit run app.py
 ```
 
-Visit `http://localhost:8501`. Use the sidebar to confirm the public key path, then drag and drop a file and click **Vault It!**
+Visit `http://localhost:8501`. Drag and drop a file and click **Vault It!**
 
 ---
 
@@ -422,9 +367,9 @@ Visit `http://localhost:8501`. Use the sidebar to confirm the public key path, t
 
 ### Install Termux
 
-Get it from [F-Droid](https://f-droid.org/packages/com.termux/) (recommended — Play Store version is outdated).
+Download from [F-Droid](https://f-droid.org/packages/com.termux/) — recommended over the Play Store version.
 
-### Install Python and PyCryptodome
+### Install Dependencies
 
 ```bash
 pkg update && pkg upgrade -y
@@ -441,7 +386,7 @@ termux-setup-storage
 
 ### Transfer Files via USB
 
-Connect phone in **File Transfer (MTP)** mode. Copy `private.pem` and `client.py` to phone Downloads, then:
+Connect phone in **File Transfer (MTP)** mode. Copy `private.pem` and `client.py` to phone Downloads, then in Termux:
 
 ```bash
 cp ~/storage/downloads/private.pem ~/private.pem
@@ -456,7 +401,33 @@ Make sure the laptop hotspot is active and your phone is connected to it, then:
 python client.py
 ```
 
-The client will connect, list available vaults, let you select one, download it, decrypt it, restore the original filename, and offer to open it immediately.
+Expected output:
+
+```
+════════════════════════════════════════════════════
+   🛡️  AEGIS HOTSPOT VAULT — TERMUX CLIENT
+════════════════════════════════════════════════════
+
+[*] Connecting to 192.168.137.1:2121 …
+[✔] Connected
+
+[*] Available vaults:
+    [0] report.vault
+
+[*] Downloading: report.vault
+  [████████████████████████████████████████]  100.0%
+
+[✔] Downloaded 45312 bytes
+[*] Decrypting report.vault …
+[✔] GCM auth tag verified ✔
+[✔] File decrypted and saved as: report.pdf
+
+════════════════════════════════════════════════════
+   Secure transfer complete. ✔
+════════════════════════════════════════════════════
+
+    Open file now? [Y/N]:
+```
 
 ---
 
@@ -467,11 +438,11 @@ The client will connect, list available vaults, let you select one, download it,
 python crypto_core.py genkeys
 python crypto_core.py genkeys --dir /path/to/keystore
 
-# Encrypt a file (headless, no Streamlit)
+# Encrypt a file (no GUI)
 python crypto_core.py encrypt secret.pdf
 python crypto_core.py encrypt secret.pdf --pub public.pem --outdir ./shared_vault
 
-# Decrypt a vault file
+# Decrypt a vault
 python crypto_core.py decrypt secret.vault
 python crypto_core.py decrypt secret.vault --priv private.pem --outdir ./recovered
 ```
@@ -494,12 +465,12 @@ PASSIVE_PORTS = range(60000, 60100)   # Passive mode port range
 ### `client.py`
 
 ```python
-SERVER_IP     = "192.168.137.1"                        # Hotspot gateway
-SERVER_PORT   = 2121                                   # Match server.py
-FTP_USER      = "aryaditya"                            # Match server.py
-FTP_PASS      = "5056"                                 # Match server.py
-PRIV_KEY_PATH = os.path.expanduser("~/private.pem")   # RSA private key
-OUTPUT_DIR    = os.path.expanduser("~/storage/downloads/aegis_out")
+SERVER_IP     = "192.168.137.1"       # Laptop hotspot gateway
+SERVER_PORT   = 2121                  # Must match server.py
+FTP_USER      = "aryaditya"           # Must match server.py
+FTP_PASS      = "5056"                # Must match server.py
+PRIV_KEY_PATH = "~/private.pem"       # RSA private key on phone
+OUTPUT_DIR    = "~/storage/downloads/aegis_out"
 ```
 
 ---
@@ -508,33 +479,33 @@ OUTPUT_DIR    = os.path.expanduser("~/storage/downloads/aegis_out")
 
 ### What Is Protected
 
-| Attack Vector | Protection Mechanism |
-|---------------|---------------------|
-| Wi-Fi eavesdropping | AES-256-GCM — ciphertext indistinguishable from random |
+| Attack Vector | Protection |
+|---------------|-----------|
+| Wi-Fi eavesdropping | AES-256-GCM — ciphertext indistinguishable from random data |
 | In-transit tampering | 128-bit GCM auth tag — any modification causes decryption failure |
 | AES key extraction from vault | RSA-2048 OAEP — requires factoring a 2048-bit semiprime |
 | AES brute force | 2²⁵⁶ keyspace — computationally infeasible |
-| Replay / vault reuse | Per-file random 128-bit nonce — every vault is cryptographically unique |
-| Accidental key commit | `.gitignore` blocks all `*.pem` files |
+| Vault replay / reuse | Per-file random 128-bit nonce — every vault is cryptographically unique |
+| Accidental private key commit | `.gitignore` blocks all `*.pem` files |
 
 ### What Is Not Protected
 
-- FTP credentials are plaintext (FTP protocol limitation — no TLS in this build)
-- File transfer metadata (filename, timing, size) is visible to network observers
+- FTP credentials are transmitted in plaintext (FTP protocol limitation)
+- File transfer metadata (filename, size, timing) is visible to a network observer
 - Private key security depends entirely on physical device security
-- No brute-force protection on the FTP server
+- No brute-force protection on the FTP login
 
 ---
 
 ## Threat Model
 
-**Adversary:** A passive observer with full packet capture on the hotspot subnet (e.g., another device connected to the same hotspot).
+**Adversary:** A passive observer with full packet capture on the hotspot subnet.
 
-**Capability:** Can capture the complete FTP session, including the `.vault` file contents and FTP credentials.
+**Capability:** Can capture the complete FTP session including the `.vault` file and FTP credentials.
 
-**Outcome:** The adversary obtains the vault binary. Without `private.pem`, the RSA-wrapped AES key cannot be recovered and the ciphertext cannot be decrypted. The vault contents remain computationally secure.
+**Outcome:** The adversary obtains the vault binary. Without `private.pem`, the RSA-wrapped AES key cannot be recovered and the ciphertext cannot be decrypted. Vault contents remain computationally secure.
 
-**Out of scope:** Physical device compromise, malware on either device, side-channel attacks on the cryptographic implementation, compromise of the RSA private key itself.
+**Out of scope:** Physical device compromise, malware on either device, side-channel attacks, compromise of the RSA private key itself.
 
 ---
 
@@ -546,16 +517,16 @@ OUTPUT_DIR    = os.path.expanduser("~/storage/downloads/aegis_out")
 | `streamlit` | ≥ 1.35.0 | Apache 2.0 | `app.py` (laptop only) |
 | `pyftpdlib` | ≥ 1.5.9 | MIT | `server.py` (laptop only) |
 
-Termux mobile only requires `pycryptodome` — no Streamlit or pyftpdlib needed on the phone.
+Termux only requires `pycryptodome`.
 
 ---
 
 ## Known Limitations
 
-1. **Single recipient** — vault is encrypted to one RSA public key; multi-recipient would require wrapping the AES key separately for each recipient
-2. **No TLS on FTP** — vault filename and credentials are visible in network captures; file content remains encrypted
-3. **Static gateway IP** — `192.168.137.1` is the Windows hotspot default; Linux may differ
-4. **In-memory GCM** — very large files are loaded fully into RAM before encryption; not suitable for multi-GB files without chunking
+1. **Single recipient** — vault is encrypted to one RSA public key only
+2. **No TLS on FTP** — vault filename and credentials visible in network captures; file content remains encrypted
+3. **Static gateway IP** — `192.168.137.1` is the Windows hotspot default; Linux hotspots may differ
+4. **In-memory processing** — very large files load fully into RAM before encryption
 5. **No key revocation** — compromised keypair has no invalidation mechanism for existing vaults
 
 ---
@@ -565,10 +536,9 @@ Termux mobile only requires `pycryptodome` — no Streamlit or pyftpdlib needed 
 - [ ] TLS on FTP (`pyftpdlib` supports `TLS_FTPHandler`)
 - [ ] Multi-recipient vaults (wrap AES key to N public keys)
 - [ ] QR code key transfer (eliminate USB dependency)
-- [ ] Streaming AES-GCM for large files (chunked encryption)
+- [ ] Streaming AES-GCM for large files
 - [ ] HMAC over vault header for metadata integrity
 - [ ] Termux:Widget one-tap shortcut for vault retrieval
-- [ ] Web decryption UI using the WebCrypto API
 
 ---
 
@@ -580,25 +550,14 @@ Developed for the **Cryptography and Network Security (CNS)** course at **VIT Ch
 
 - Hybrid encryption (asymmetric key transport + symmetric data encryption)
 - Authenticated Encryption with Associated Data (AEAD) via AES-GCM
-- RSA-OAEP padding and its semantic security guarantees over textbook RSA
-- Galois/Counter Mode: how GCM combines CTR-mode encryption with a Galois field MAC
-- Practical key management: generation, storage, secure transport, and access control
+- RSA-OAEP padding and semantic security over textbook RSA
+- Galois/Counter Mode: CTR-mode encryption combined with a Galois field MAC
+- Practical key management: generation, secure storage, and transport
 - Local network security: building a controlled, isolated communication channel
 - Binary file format design for cryptographic containers
 
 ---
 
-<div align="center">
+*Aegis Hotspot Vault — Built for learning. Designed for security.*
 
----
-
-**Aegis Hotspot Vault** — Built for learning. Designed for security.
-
-[Aryaditya Deshmukh](https://github.com/aryadityad/) · 23BCE5056 · VIT Chennai
-
-*"The best encryption is the kind you understand."*
-
----
-
-</div>#   A e i g s  
- 
+**[Aryaditya Deshmukh](https://github.com/aryadityad/) · 23BCE5056 · VIT Chennai**
