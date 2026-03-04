@@ -81,7 +81,7 @@ timeout /t 3 /nobreak >nul
 :: Launch Streamlit in new PowerShell window
 echo  [..] Starting Streamlit Dashboard...
 start "Aegis — Dashboard" powershell -NoExit -Command ^
-    "& { cd '%CD%'; .\venv\Scripts\activate.ps1 2>$null; if($LASTEXITCODE -ne 0){.\venv\Scripts\activate.bat}; Write-Host ''; Write-Host '  ================================================' -ForegroundColor Green; Write-Host '   AEGIS DASHBOARD' -ForegroundColor Green; Write-Host '  ================================================' -ForegroundColor Green; Write-Host ''; python -m streamlit run app.py }"
+    "& { cd '%CD%'; .\venv\Scripts\activate.ps1 2>$null; if($LASTEXITCODE -ne 0){.\venv\Scripts\activate.bat}; Write-Host ''; Write-Host '  ================================================' -ForegroundColor Green; Write-Host '   AEGIS DASHBOARD' -ForegroundColor Green; Write-Host '  ================================================' -ForegroundColor Green; Write-Host ''; python -m streamlit run app.py --server.headless true }"
 
 :: Wait for Streamlit to spin up then open browser
 echo  [..] Waiting for dashboard to start...
