@@ -62,11 +62,15 @@ if __name__ == "__main__":
     
     # Provide usage instructions if argument not provided
     if len(sys.argv) < 2:
-        print("Usage: python vault_client.py <remote_vault_filename>")
-        print("Example: python vault_client.py secret_document.vault")
+        print("Usage: python vault_client.py <remote_vault_filename> [server_ip]")
+        print("Example: python vault_client.py secret_document.vault 192.168.137.1")
         sys.exit(1)
         
     REMOTE_FILE = sys.argv[1]
+    # Allow overriding SERVER_IP for local testing
+    if len(sys.argv) >= 3:
+        SERVER_IP = sys.argv[2]
+        
     LOCAL_FILE = f"downloaded_{REMOTE_FILE}"
     PRIVATE_KEY = "private.pem" # Phone's RSA Private Key (must exist locally)
     
