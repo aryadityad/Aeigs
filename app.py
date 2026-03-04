@@ -203,6 +203,64 @@ st.markdown("""
   hr { border-color: #21262d; }
   a  { color: #58a6ff; text-decoration: none; }
   a:hover { text-decoration: underline; }
+
+  /* ── File preview card ── */
+  .file-preview {
+    background: #0d1117; border: 1px solid #30363d;
+    border-radius: 10px; padding: 14px 16px;
+    display: flex; align-items: center; gap: 16px;
+    margin: 8px 0;
+  }
+  .file-preview-icon {
+    font-size: 2rem; flex-shrink: 0;
+    width: 48px; height: 48px;
+    background: #161b22; border: 1px solid #21262d;
+    border-radius: 8px; display: flex;
+    align-items: center; justify-content: center;
+  }
+  .file-preview-info { flex: 1; min-width: 0; }
+  .file-preview-name {
+    font-size: 0.85rem; font-weight: 700; color: #e6edf3;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .file-preview-meta { font-size: 0.7rem; color: #6e7681; margin-top: 3px; }
+  .file-preview-badge {
+    background: #161b22; border: 1px solid #30363d;
+    border-radius: 4px; padding: 2px 8px;
+    font-size: 0.65rem; color: #3fb950; flex-shrink: 0;
+  }
+
+  /* ── Compact section header ── */
+  .section-header {
+    font-size: 0.65rem !important; font-weight: 700; letter-spacing: 0.2em;
+    color: #58a6ff; text-transform: uppercase;
+    border-bottom: 1px solid #21262d; padding-bottom: 4px;
+    margin: 14px 0 8px 0 !important;
+  }
+
+  /* ── Compact stage cards ── */
+  .stage-card {
+    padding: 10px 8px !important;
+    margin: 2px 0 !important;
+  }
+
+  /* ── Empty state box ── */
+  .empty-state {
+    background: #0d1117; border: 1px dashed #21262d;
+    border-radius: 10px; padding: 28px 16px;
+    text-align: center; color: #484f58;
+    font-size: 0.78rem; line-height: 1.8;
+  }
+  .empty-state-icon { font-size: 1.8rem; margin-bottom: 8px; }
+
+  /* ── Vault ready banner ── */
+  .vault-ready {
+    background: #0d1117; border: 1px solid #3fb950;
+    border-radius: 10px; padding: 12px 16px;
+    box-shadow: 0 0 16px rgba(63,185,80,0.15);
+    font-size: 0.78rem; color: #3fb950;
+    display: flex; align-items: center; gap: 10px;
+  }
 </style>
 """, unsafe_allow_html=True)
 
@@ -317,9 +375,59 @@ with tab_vault:
                 unsafe_allow_html=True,
             )
 
+    # ── File type icon map ───────────────────────────────────
+    FILE_ICONS = {
+        ".pdf":".pdf", ".png":"🖼", ".jpg":"🖼", ".jpeg":"🖼",
+        ".gif":"🎞", ".mp4":"🎬", ".mkv":"🎬", ".mp3":"🎵",
+        ".wav":"🎵", ".txt":"📄", ".docx":"📝", ".xlsx":"📊",
+        ".pptx":"📊", ".zip":"🗜", ".apk":"📱", ".py":"🐍",
+        ".csv":"📊",
+    }
+    FILE_LABELS = {
+        ".pdf":"PDF Document", ".png":"PNG Image", ".jpg":"JPEG Image",
+        ".jpeg":"JPEG Image", ".gif":"GIF Image", ".mp4":"MP4 Video",
+        ".mkv":"MKV Video", ".mp3":"MP3 Audio", ".wav":"WAV Audio",
+        ".txt":"Text File", ".docx":"Word Document", ".xlsx":"Excel Spreadsheet",
+        ".pptx":"PowerPoint", ".zip":"ZIP Archive", ".apk":"Android APK",
+        ".py":"Python Script", ".csv":"CSV Spreadsheet",
+    }
+
+    def _fmt_size(n):
+        if n >= 1_048_576: return f"{n/1_048_576:.2f} MB"
+        if n >= 1024:      return f"{n/1024:.1f} KB"
+        return f"{n} B"
+
     with col1:
         st.markdown('<div class="section-header">📁 File Uploader</div>', unsafe_allow_html=True)
         uploaded = st.file_uploader("Drop any file to encrypt", label_visibility="collapsed")
+
+        # ── Live file preview ─────────────────────────────────
+        preview_placeholder = st.empty()
+        if uploaded is not None:
+            ext   = Path(uploaded.name).suffix.lower()
+            icon  = FILE_ICONS.get(ext, "📎")
+            label = FILE_LABELS.get(ext, ext.lstrip(".").upper() + " File" if ext else "File")
+            sz    = _fmt_size(uploaded.size)
+            preview_placeholder.markdown(
+                f'<div class="file-preview">'
+                f'  <div class="file-preview-icon">{icon}</div>'
+                f'  <div class="file-preview-info">'
+                f'    <div class="file-preview-name">{uploaded.name}</div>'
+                f'    <div class="file-preview-meta">{label} &nbsp;·&nbsp; {sz} &nbsp;·&nbsp; Ready to vault</div>'
+                f'  </div>'
+                f'  <div class="file-preview-badge">✔ LOADED</div>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+        else:
+            preview_placeholder.markdown(
+                '<div class="empty-state">'
+                '<div class="empty-state-icon">📂</div>'
+                'Drop a file above to see preview<br>'
+                '<span style="color:#30363d;font-size:0.7rem">PDF · Image · Video · Audio · Docs · Any file type</span>'
+                '</div>',
+                unsafe_allow_html=True,
+            )
 
         st.markdown('<div class="section-header">⚡ Live Encryption Pipeline</div>', unsafe_allow_html=True)
         pipeline_placeholder = st.empty()
@@ -344,15 +452,30 @@ with tab_vault:
         st.markdown('<div class="section-header">🖥 Live Hex Inspector</div>', unsafe_allow_html=True)
         hex_placeholder = st.empty()
         hex_placeholder.markdown(
-            '<div class="log-box">// Encrypt a file to see live hex output…\n'
-            '// AES key · RSA modulus · nonce · auth tag</div>',
+            '<div class="empty-state" style="text-align:left;padding:16px">'
+            '<div class="empty-state-icon" style="font-size:1.2rem">💻</div>'
+            '<span style="color:#39d353;font-family:Courier New,monospace;font-size:0.72rem">'
+            '// Waiting for encryption run…<br>'
+            '// AES key · RSA modulus · nonce · auth tag<br>'
+            '// will appear here in real time'
+            '</span>'
+            '</div>',
             unsafe_allow_html=True,
         )
 
     # ── Run button ─────────────────────────────────────────────
     st.markdown("")
-    run_col, _ = st.columns([1, 3])
+    run_col, info_col = st.columns([1, 3])
     run_btn = run_col.button("🚀  Vault It!", use_container_width=True)
+    if uploaded and not run_btn:
+        info_col.markdown(
+            f'<div style="padding:10px 0;color:#6e7681;font-size:0.75rem">'
+            f'Ready to encrypt <b style="color:#e6edf3">{uploaded.name}</b> '
+            f'({_fmt_size(uploaded.size)}) → '
+            f'<span style="color:#58a6ff">RSA-2048 + AES-256-GCM</span>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
 
     # ── Encryption logic ───────────────────────────────────────
     if run_btn:
