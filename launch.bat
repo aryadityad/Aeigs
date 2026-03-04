@@ -2,6 +2,9 @@
 setlocal enabledelayedexpansion
 title Aegis Hotspot Vault — Launcher
 
+:: Always run from the folder where launch.bat lives
+cd /d "%~dp0"
+
 :: ════════════════════════════════════════════════════════════
 ::   AEGIS HOTSPOT VAULT — Windows Auto Launcher
 ::   Author : Aryaditya Deshmukh (23BCE5056) · VIT Chennai
