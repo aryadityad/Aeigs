@@ -1,0 +1,17 @@
+__pycache__/
+
+# ----------------------------------------------------
+# SECURITY BEST PRACTICE: Zero-Knowledge Principle
+# ----------------------------------------------------
+# NEVER commit private keys (.pem files) or encrypted 
+# vault binaries (.vault) to GitHub. The security of 
+# the RSA asymmetric cryptography relies exclusively on 
+# keeping the private key locally and strictly off-grid.
+# Pushing these to version control constitutes a severe leak.
+*.pem
+*.vault
+
+# Ignore locally downloaded or decrypted files
+*.decrypted
+downloaded_*
+demo_*
