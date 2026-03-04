@@ -27,7 +27,8 @@ with st.sidebar:
 
 st.title("🛡️ Aegis-Hotspot Vault")
 st.markdown("**Real-Time Cryptographic Handshake Visualizer**")
-st.write("This dashboard visualizes the hybrid **RSA-2048** and **AES-256-GCM** encryption and decapsulation process happening under the hood.")
+st.info("🎓 **Academic Project**: Built for the *Cryptography and Network Security* course to practically explain, visualize, and apply real-world cryptographic architectures (Hybrid RSA + AES-GCM).")
+st.write("This dashboard visualizes the core encryption and decapsulation process happening under the hood.")
 st.divider()
 
 col1, col2 = st.columns([1, 1.5])
