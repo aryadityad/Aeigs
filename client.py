@@ -16,20 +16,29 @@ Requirements (install inside Termux):
 import os
 import sys
 import time
+import socket
 import ftplib
 import subprocess
+import concurrent.futures
 from pathlib import Path
 
 from Crypto.PublicKey import RSA
 from Crypto.Cipher    import AES, PKCS1_OAEP
 
 # ── Config ─────────────────────────────────────────────────────
-SERVER_IP     = "192.168.137.1"
+# SERVER_IP is auto-detected by scanning the subnet.
+# Set to a specific IP to skip scanning (faster if IP is known).
+SERVER_IP     = None               # None = auto-scan
 SERVER_PORT   = 2121
 FTP_USER      = "aryaditya"
 FTP_PASS      = "5056"
 PRIV_KEY_PATH = os.path.expanduser("~/private.pem")
 OUTPUT_DIR    = os.path.expanduser("~/storage/downloads/aegis_out")
+
+# Subnets to scan when SERVER_IP is None
+SCAN_SUBNETS  = ["192.168.137", "192.168.1", "192.168.0", "10.0.0"]
+SCAN_TIMEOUT  = 0.4   # seconds per host
+SCAN_WORKERS  = 60    # parallel threads
 
 # Vault format constants
 VAULT_MAGIC    = b"AEGISVLT"
@@ -235,13 +244,27 @@ def main():
         sys.exit(1)
     _ok(f"Private key found  →  {PRIV_KEY_PATH}")
 
+    # ── Auto-detect or use configured server IP ───────────────
+    target_ip = SERVER_IP
+    _step(2, 5, "Locating Aegis server" if target_ip is None else f"Connecting to {target_ip}:{SERVER_PORT}")
+
+    if target_ip is None:
+        _info(f"No IP configured — scanning {len(SCAN_SUBNETS)} subnet(s) for Aegis FTP server…")
+        print()
+        target_ip = _auto_detect_server(SERVER_PORT)
+        if target_ip is None:
+            _err("No Aegis server found on any subnet.")
+            _warn("Make sure the laptop hotspot is ON and server.py is running.")
+            _info(f"Or set SERVER_IP manually at the top of this file.")
+            sys.exit(1)
+        _ok(f"Server found  →  {_c('cyan', target_ip)}:{SERVER_PORT}")
+
     # ── FTP connect ────────────────────────────────────────────
-    _step(2, 5, f"Connecting to {SERVER_IP}:{SERVER_PORT}")
     try:
         ftp = ftplib.FTP()
-        ftp.connect(SERVER_IP, SERVER_PORT, timeout=10)
+        ftp.connect(target_ip, SERVER_PORT, timeout=10)
         ftp.login(FTP_USER, FTP_PASS)
-        _ok(f"Connected  ·  user={FTP_USER}  ·  {SERVER_IP}:{SERVER_PORT}")
+        _ok(f"Connected  ·  user={FTP_USER}  ·  {target_ip}:{SERVER_PORT}")
     except Exception as exc:
         _err(f"FTP connection failed: {exc}")
         sys.exit(1)

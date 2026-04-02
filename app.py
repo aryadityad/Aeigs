@@ -14,6 +14,8 @@ import tempfile
 import os
 from pathlib import Path
 
+import io
+import base64
 import streamlit as st
 from crypto_core import generate_rsa_keypair, encrypt_file
 
@@ -204,6 +206,33 @@ st.markdown("""
   a  { color: #58a6ff; text-decoration: none; }
   a:hover { text-decoration: underline; }
 
+  /* ── QR tab ── */
+  .qr-card {
+    background: #0d1117; border: 1px solid #30363d;
+    border-radius: 12px; padding: 28px 32px;
+    text-align: center; max-width: 420px; margin: 0 auto;
+  }
+  .qr-card img { border-radius: 8px; border: 4px solid #21262d; }
+  .qr-title { font-size: 1rem; font-weight: 700; color: #e6edf3; margin-bottom: 6px; }
+  .qr-sub   { font-size: 0.75rem; color: #6e7681; margin-bottom: 20px; }
+  .qr-warn  {
+    background: #2d1b00; border: 1px solid #ea580c;
+    border-radius: 8px; padding: 10px 14px;
+    font-size: 0.72rem; color: #fb923c; margin-top: 16px; text-align: left;
+  }
+  .qr-step  {
+    background: #0d1117; border: 1px solid #21262d;
+    border-radius: 8px; padding: 12px 16px; margin: 8px 0;
+    font-size: 0.78rem; color: #8b949e; text-align: left;
+    display: flex; align-items: flex-start; gap: 12px;
+  }
+  .qr-step-num {
+    background: #1c2333; border: 1px solid #30363d;
+    border-radius: 50%; width: 22px; height: 22px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.7rem; font-weight: 700; color: #58a6ff; flex-shrink: 0;
+  }
+
   /* ── File preview card ── */
   .file-preview {
     background: #0d1117; border: 1px solid #30363d;
@@ -336,10 +365,11 @@ with hcol2:
 st.markdown("---")
 
 # ── Tabs ───────────────────────────────────────────────────────
-tab_vault, tab_how, tab_crypto = st.tabs([
+tab_vault, tab_how, tab_crypto, tab_qr = st.tabs([
     "🚀  Vault a File",
     "📖  How It Works",
     "🔬  Cryptography Deep Dive",
+    "📲  Key Transfer (QR)",
 ])
 
 
@@ -820,3 +850,118 @@ open(filename, "wb").write(plaintext)
         '</div>',
         unsafe_allow_html=True,
     )
+
+
+# ══════════════════════════════════════════════════════════════
+#   TAB 4 — QR KEY TRANSFER
+# ══════════════════════════════════════════════════════════════
+with tab_qr:
+    st.markdown('<div class="section-header">📲 Transfer Private Key to Phone via QR Code</div>', unsafe_allow_html=True)
+
+    qr_col, info_col = st.columns([1, 1.2])
+
+    with qr_col:
+        priv_key_path = "private.pem"
+        if not Path(priv_key_path).exists():
+            st.markdown(
+                '<div class="empty-state">'
+                '<div class="empty-state-icon">🔑</div>'
+                'No private.pem found.<br>'
+                '<span style="color:#30363d;font-size:0.7rem">Generate a keypair in the sidebar first.</span>'
+                '</div>',
+                unsafe_allow_html=True,
+            )
+        else:
+            try:
+                import qrcode
+                import qrcode.image.pil
+
+                priv_pem = Path(priv_key_path).read_text().strip()
+
+                # Generate QR
+                qr = qrcode.QRCode(
+                    version      = None,
+                    error_correction = qrcode.constants.ERROR_CORRECT_L,
+                    box_size     = 6,
+                    border       = 3,
+                )
+                qr.add_data(priv_pem)
+                qr.make(fit=True)
+                img = qr.make_image(fill_color="#c9d1d9", back_color="#0d1117")
+
+                # Convert to base64 for display
+                buf = io.BytesIO()
+                img.save(buf, format="PNG")
+                b64 = base64.b64encode(buf.getvalue()).decode()
+
+                st.markdown(
+                    f'<div class="qr-card">'
+                    f'<div class="qr-title">🔑 private.pem QR Code</div>'
+                    f'<div class="qr-sub">Scan with Termux QR scanner — no USB needed</div>'
+                    f'<img src="data:image/png;base64,{b64}" width="300"/>'
+                    f'<div class="qr-warn">'
+                    f'⚠ <b>Security Warning:</b> This QR contains your RSA private key. '
+                    f'Only scan in a private environment. Anyone who scans this can decrypt your vaults.'
+                    f'</div>'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
+            except ImportError:
+                st.error("qrcode library not installed. Run: pip install qrcode[pil]")
+            except Exception as exc:
+                st.error(f"QR generation failed: {exc}")
+
+    with info_col:
+        st.markdown('<div class="section-header">📋 How to Scan on the Phone</div>', unsafe_allow_html=True)
+        for step_num, step_text in [
+            ("1", "Install the QR scanner in Termux:"),
+            ("2", "Run the scanner command:"),
+            ("3", "Point camera at the QR code on your screen"),
+            ("4", "The private key is saved automatically to ~/private.pem"),
+            ("5", "Run client.py — it will find and use the key"),
+        ]:
+            st.markdown(
+                f'<div class="qr-step">'
+                f'<div class="qr-step-num">{step_num}</div>'
+                f'<div>{step_text}</div>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+
+        st.markdown('<div class="section-header">💻 Termux Commands</div>', unsafe_allow_html=True)
+        st.code("pkg install termux-tools", language="bash")
+        st.code("termux-camera-photo -c 0 qr.jpg\nzbarimg qr.jpg > ~/private.pem", language="bash")
+
+        st.markdown('<div class="section-header">ℹ Why QR Transfer?</div>', unsafe_allow_html=True)
+        st.markdown(
+            '<div class="explainer">'
+            'Transferring <code>private.pem</code> via USB requires enabling MTP mode, '
+            'navigating file managers, and manually moving the file. '
+            '<br><br>'
+            'QR transfer is instant — point the camera, done. No cables, no file managers, '
+            'no risk of copying the key to the wrong location.'
+            '<br><br>'
+            '<b>The QR code encodes the full PEM text</b> of the private key, which is then '
+            'written directly to <code>~/private.pem</code> on the phone.'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+
+        # Key fingerprint for verification
+        if Path("private.pem").exists():
+            try:
+                from Crypto.PublicKey import RSA
+                import hashlib
+                key_data = Path("private.pem").read_bytes()
+                fingerprint = hashlib.sha256(key_data).hexdigest()
+                st.markdown('<div class="section-header">🔍 Key Fingerprint (SHA-256)</div>', unsafe_allow_html=True)
+                st.markdown(
+                    f'<div class="log-box" style="font-size:0.7rem">'
+                    f'// Verify this matches on both devices after transfer<br>'
+                    f'<span style="color:#39d353">{fingerprint[:32]}</span><br>'
+                    f'<span style="color:#39d353">{fingerprint[32:]}</span>'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
+            except Exception:
+                pass

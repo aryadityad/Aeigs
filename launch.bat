@@ -42,9 +42,9 @@ if not exist "venv\" (
 
 :: ── Step 3: Install dependencies ─────────────────────────
 echo.
-echo  [3/5] Installing dependencies...
+echo  [3/5] Installing dependencies (incl. any new packages)...
 call venv\Scripts\activate.bat
-pip install -r requirements.txt --quiet --disable-pip-version-check
+pip install -r requirements.txt --quiet --disable-pip-version-check --upgrade
 if errorlevel 1 (
     echo  [X] pip install failed. Check requirements.txt and internet connection.
     pause
