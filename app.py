@@ -66,7 +66,7 @@ st.markdown("""
     box-shadow: 0 0 12px rgba(88,166,255,0.3);
     color: #58a6ff;
   }
-  .gh-badge svg { fill: #c9d1d9; }
+  .gh-badge svg { fill: currentColor; vertical-align: middle; transition: fill 0.2s; }
 
   /* ── Section headers ── */
   .section-header {
@@ -184,23 +184,48 @@ st.markdown("""
     transform: translateY(-1px);
   }
 
-  /* ── File uploader ── */
+  /* ── File uploader — compact ── */
   [data-testid="stFileUploader"] {
-    background: #0d1117; border: 2px dashed #21262d;
-    border-radius: 10px; padding: 8px;
+    background: #0d1117; border: 1px dashed #30363d;
+    border-radius: 8px; padding: 0px;
   }
   [data-testid="stFileUploader"]:hover { border-color: #58a6ff; }
+  /* Shrink the inner drop zone height */
+  [data-testid="stFileUploaderDropzone"] {
+    padding: 12px 16px !important; min-height: unset !important;
+  }
+  [data-testid="stFileUploaderDropzoneInstructions"] {
+    display: flex; flex-direction: row; align-items: center;
+    gap: 12px; padding: 0 !important;
+  }
+  [data-testid="stFileUploaderDropzoneInstructions"] > div:first-child {
+    display: none; /* hide the cloud icon */
+  }
 
   /* ── Tabs ── */
-  .stTabs [data-baseweb="tab-list"] { background: transparent; gap: 4px; }
+  .stTabs [data-baseweb="tab-list"] {
+    background: #080a0e !important; gap: 4px;
+    border-bottom: 1px solid #21262d !important;
+    padding: 4px 4px 0 4px;
+  }
   .stTabs [data-baseweb="tab"] {
-    background: #0d1117; border: 1px solid #21262d;
-    border-radius: 6px; color: #6e7681; font-size: 0.78rem;
+    background: #0d1117 !important; border: 1px solid #21262d !important;
+    border-bottom: none !important; border-radius: 6px 6px 0 0 !important;
+    color: #6e7681 !important; font-size: 0.78rem !important;
+    font-family: "JetBrains Mono", monospace !important;
+    padding: 6px 14px !important;
+  }
+  .stTabs [data-baseweb="tab"]:hover {
+    background: #161b22 !important; color: #c9d1d9 !important;
+    border-color: #30363d !important;
   }
   .stTabs [aria-selected="true"] {
     background: #161b22 !important; border-color: #58a6ff !important;
-    color: #58a6ff !important;
+    color: #58a6ff !important; font-weight: 700 !important;
   }
+  /* hide the default blue underline indicator */
+  .stTabs [data-baseweb="tab-highlight"] { display: none !important; }
+  .stTabs [data-baseweb="tab-border"]    { display: none !important; }
 
   hr { border-color: #21262d; }
   a  { color: #58a6ff; text-decoration: none; }
@@ -267,20 +292,24 @@ st.markdown("""
     margin: 14px 0 8px 0 !important;
   }
 
-  /* ── Compact stage cards ── */
+  /* ── Compact inline stage cards ── */
   .stage-card {
-    padding: 10px 8px !important;
-    margin: 2px 0 !important;
+    padding: 8px 10px !important;
+    margin: 0 !important;
+    border-radius: 8px !important;
+    display: inline-flex !important;
+    align-items: center; gap: 6px;
+    white-space: nowrap;
   }
 
-  /* ── Empty state box ── */
+  /* ── Empty state box — compact ── */
   .empty-state {
     background: #0d1117; border: 1px dashed #21262d;
-    border-radius: 10px; padding: 28px 16px;
-    text-align: center; color: #484f58;
-    font-size: 0.78rem; line-height: 1.8;
+    border-radius: 8px; padding: 10px 14px;
+    color: #484f58; font-size: 0.73rem; line-height: 1.6;
+    display: flex; align-items: center; gap: 10px;
   }
-  .empty-state-icon { font-size: 1.8rem; margin-bottom: 8px; }
+  .empty-state-icon { font-size: 1.1rem; flex-shrink: 0; }
 
   /* ── Vault ready banner ── */
   .vault-ready {
@@ -295,7 +324,7 @@ st.markdown("""
 
 
 # ── Sidebar ────────────────────────────────────────────────────
-GITHUB_SVG = """<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
+GITHUB_SVG = """<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" style="fill:currentColor;vertical-align:middle">
 <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385
 .6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61
 -.546-1.385-1.335-1.755-1.335-1.755-1.087-.744.084-.729.084-.729 1.205.084
@@ -388,22 +417,26 @@ with tab_vault:
     ]
 
     def render_pipeline(active_stage=None, done_stages=[]):
-        cols = st.columns(len(STAGES))
+        parts = []
         for i, (icon, key, label) in enumerate(STAGES):
             if key in done_stages:
-                cls, symbol = "stage-done",    "✔"
+                cls, symbol, sym_color = "stage-done",    "✔", "#3fb950"
             elif key == active_stage:
-                cls, symbol = "stage-active",  "⟳"
+                cls, symbol, sym_color = "stage-active",  "⟳", "#58a6ff"
             else:
-                cls, symbol = "stage-pending", "○"
-            cols[i].markdown(
-                f'<div class="stage-card {cls}">'
-                f'<b style="font-size:1.2rem">{icon}</b><br>'
-                f'<b>{symbol}</b><br>'
-                f'<small>{label}</small>'
-                f'</div>',
-                unsafe_allow_html=True,
+                cls, symbol, sym_color = "stage-pending", "○", "#484f58"
+            arrow = "<span style='color:#30363d;padding:0 6px'>→</span>" if i < len(STAGES)-1 else ""
+            parts.append(
+                f'<div class="stage-card {cls}" style="flex:1">'
+                f'<span style="font-size:1rem">{icon}</span> '
+                f'<b style="color:{sym_color}">{symbol}</b> '
+                f'<span style="font-size:0.72rem">{label}</span>'
+                f'</div>{arrow}'
             )
+        st.markdown(
+            f'<div style="display:flex;align-items:center;gap:0;margin:4px 0">{"".join(parts)}</div>',
+            unsafe_allow_html=True,
+        )
 
     # ── File type icon map ───────────────────────────────────
     FILE_ICONS = {
@@ -452,9 +485,8 @@ with tab_vault:
         else:
             preview_placeholder.markdown(
                 '<div class="empty-state">'
-                '<div class="empty-state-icon">📂</div>'
-                'Drop a file above to see preview<br>'
-                '<span style="color:#30363d;font-size:0.7rem">PDF · Image · Video · Audio · Docs · Any file type</span>'
+                '<span class="empty-state-icon">📂</span>'
+                '<span>No file selected &nbsp;<span style="color:#30363d">· PDF · Image · Video · Audio · Any type</span></span>'
                 '</div>',
                 unsafe_allow_html=True,
             )
@@ -482,30 +514,25 @@ with tab_vault:
         st.markdown('<div class="section-header">🖥 Live Hex Inspector</div>', unsafe_allow_html=True)
         hex_placeholder = st.empty()
         hex_placeholder.markdown(
-            '<div class="empty-state" style="text-align:left;padding:16px">'
-            '<div class="empty-state-icon" style="font-size:1.2rem">💻</div>'
-            '<span style="color:#39d353;font-family:Courier New,monospace;font-size:0.72rem">'
-            '// Waiting for encryption run…<br>'
-            '// AES key · RSA modulus · nonce · auth tag<br>'
-            '// will appear here in real time'
-            '</span>'
+            '<div class="log-box" style="min-height:80px">'
+            '<span style="color:#39d353">// Waiting for encryption run…</span><br>'
+            '<span style="color:#30363d">// AES key · RSA modulus · nonce · auth tag will appear here</span>'
             '</div>',
             unsafe_allow_html=True,
         )
 
-    # ── Run button ─────────────────────────────────────────────
-    st.markdown("")
-    run_col, info_col = st.columns([1, 3])
-    run_btn = run_col.button("🚀  Vault It!", use_container_width=True)
-    if uploaded and not run_btn:
-        info_col.markdown(
-            f'<div style="padding:10px 0;color:#6e7681;font-size:0.75rem">'
-            f'Ready to encrypt <b style="color:#e6edf3">{uploaded.name}</b> '
-            f'({_fmt_size(uploaded.size)}) → '
-            f'<span style="color:#58a6ff">RSA-2048 + AES-256-GCM</span>'
-            f'</div>',
-            unsafe_allow_html=True,
-        )
+    # ── Run button lives in col1 below pipeline ───────────────
+    with col1:
+        if uploaded and not "run_btn" in dir():
+            st.markdown(
+                f'<div style="padding:6px 0 4px 0;color:#6e7681;font-size:0.72rem">'
+                f'↳ Ready · <b style="color:#e6edf3">{uploaded.name}</b> '
+                f'({_fmt_size(uploaded.size)}) · '
+                f'<span style="color:#58a6ff">RSA-2048 + AES-256-GCM</span>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+    run_btn = col1.button("🚀  Vault It!", use_container_width=True)
 
     # ── Encryption logic ───────────────────────────────────────
     if run_btn:
