@@ -8,6 +8,7 @@
 ![Streamlit](https://img.shields.io/badge/Streamlit-1.35%2B-FF4B4B?style=flat-square&logo=streamlit&logoColor=white)
 ![PyCryptodome](https://img.shields.io/badge/PyCryptodome-AES--256--GCM-4CAF50?style=flat-square)
 ![pyftpdlib](https://img.shields.io/badge/pyftpdlib-FTP%20Server-0078D4?style=flat-square)
+![qrcode](https://img.shields.io/badge/qrcode-Key%20Transfer-9B59B6?style=flat-square)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20Android-FF9800?style=flat-square)
 ![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
 
@@ -27,14 +28,15 @@
 8. [Quick Start](#quick-start)
 9. [Detailed Setup Guide](#detailed-setup-guide)
 10. [Termux Mobile Setup](#termux-mobile-setup)
-11. [CLI Reference](#cli-reference)
-12. [Configuration](#configuration)
-13. [Security Analysis](#security-analysis)
-14. [Threat Model](#threat-model)
-15. [Dependencies](#dependencies)
-16. [Known Limitations](#known-limitations)
-17. [Future Improvements](#future-improvements)
-18. [Academic Context](#academic-context)
+11. [QR Key Transfer](#qr-key-transfer)
+12. [Auto Network Scanner](#auto-network-scanner)
+13. [CLI Reference](#cli-reference)
+14. [Configuration](#configuration)
+15. [Security Analysis](#security-analysis)
+16. [Threat Model](#threat-model)
+17. [Dependencies](#dependencies)
+18. [Known Limitations](#known-limitations)
+19. [Academic Context](#academic-context)
 
 ---
 
@@ -45,6 +47,14 @@
 No cloud. No internet relay. No plaintext on the wire.
 
 Every file is sealed inside a `.vault` container using a **hybrid encryption scheme**: RSA-2048 asymmetric encryption wraps a randomly generated AES-256-GCM session key, which encrypts the actual file content with authenticated encryption. The vault is then served over a local FTP server accessible only within the hotspot subnet.
+
+**Key features:**
+- One double-click launcher (`launch.bat`) sets up the entire environment automatically
+- Live Streamlit dashboard with animated encryption pipeline and hex inspector
+- 4-tab UI: Vault a File · How It Works · Cryptography Deep Dive · QR Key Transfer
+- Animated terminal UI on Android with live MB/s speed and ETA
+- QR code transfer of `private.pem` — no USB needed
+- Auto network scanner — detects the laptop IP automatically on the phone
 
 ---
 
@@ -90,12 +100,13 @@ Aegis creates an ephemeral, self-contained secure network:
 │  │  Streamlit   │                     │                  │  │
 │  │  Dashboard   │ ◀── progress_cb() ─ │  RSA-2048 OAEP   │  │
 │  │              │                     │  AES-256-GCM     │  │
-│  │  • Upload    │                     │  Vault Assembly  │  │
-│  │  • Pipeline  │                     └────────┬─────────┘  │
-│  │  • Hex Log   │                              │ .vault     │
-│  └──────────────┘                     ┌────────▼─────────┐  │
-│                                       │  shared_vault/   │  │
-│                                       └────────┬─────────┘  │
+│  │  4 Tabs:     │                     │  Vault Assembly  │  │
+│  │  • Vault     │                     └────────┬─────────┘  │
+│  │  • How It    │                              │ .vault     │
+│  │  • Crypto    │                     ┌────────▼─────────┐  │
+│  │  • QR Key    │                     │  shared_vault/   │  │
+│  └──────────────┘                     └────────┬─────────┘  │
+│                                                │            │
 │  ┌──────────────┐                              │            │
 │  │  server.py   │ ◀────────────────────────────┘            │
 │  │  FTP :2121   │                                           │
@@ -106,14 +117,15 @@ Aegis creates an ephemeral, self-contained secure network:
 │                   ANDROID  (Termux Client)                   │
 │                                                              │
 │  client.py                                                   │
-│  1.  FTP connect  →  192.168.137.1:2121                      │
-│  2.  List & select .vault files                              │
-│  3.  Stream download  (ASCII progress bar)                   │
-│  4.  Parse vault header  →  extract original filename        │
-│  5.  RSA OAEP unwrap  →  recover AES session key             │
-│  6.  AES-256-GCM decrypt  +  verify 128-bit auth tag         │
-│  7.  Save with original filename and extension               │
-│  8.  Prompt  →  termux-open                                  │
+│  1.  Auto-scan subnet  →  find laptop IP                     │
+│  2.  FTP connect  →  IP:2121                                 │
+│  3.  List & select .vault files                              │
+│  4.  Stream download  (live MB/s + ETA progress bar)         │
+│  5.  Parse vault header  →  extract original filename        │
+│  6.  RSA OAEP unwrap  →  recover AES session key             │
+│  7.  AES-256-GCM decrypt  +  verify 128-bit auth tag         │
+│  8.  Save with original filename and extension               │
+│  9.  Prompt  →  termux-open                                  │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -197,9 +209,10 @@ This self-describing format means the receiver only needs `private.pem` and `cli
 aegis-hotspot-vault/
 │
 ├── crypto_core.py      Cryptographic engine (RSA + AES, vault read/write, CLI)
-├── app.py              Streamlit dashboard (pipeline visualizer, hex inspector)
+├── app.py              Streamlit dashboard (4 tabs, pipeline visualizer, QR key transfer)
 ├── server.py           pyftpdlib FTP server (0.0.0.0:2121, audit logging)
-├── client.py           Termux Android client (download, decrypt, open)
+├── client.py           Termux Android client (auto-scanner, download, decrypt, open)
+├── launch.bat          Windows one-click launcher (venv, deps, keys, server, dashboard)
 ├── requirements.txt    Python dependencies
 ├── .gitignore          Blocks *.pem and *.vault from git
 └── README.md           This file
@@ -211,9 +224,7 @@ aegis-hotspot-vault/
 
 ### `crypto_core.py` — The Cryptographic Engine
 
-The heart of the project. Implements all cryptographic operations using **PyCryptodome**.
-
-Key functions:
+The heart of the project. Implements all cryptographic operations using **PyCryptodome**. Also works as a standalone CLI.
 
 ```python
 generate_rsa_keypair(key_dir)
@@ -227,60 +238,67 @@ decrypt_vault(vault_path, private_key_path, output_dir)
 # Parses vault, unwraps AES key, decrypts and verifies
 ```
 
-The `progress_cb(stage_name)` callback fires at each stage — `KEY_GEN`, `RSA_WRAP`, `AES_ENCRYPT`, `VAULT_ASSEMBLY` — allowing `app.py` to animate the pipeline in real time.
+---
+
+### `app.py` — Streamlit Dashboard
+
+A dark-themed, monospace web UI with **4 tabs**:
+
+| Tab | Contents |
+|-----|----------|
+| 🚀 Vault a File | File uploader with live preview card, animated pipeline, hex inspector, vault metrics |
+| 📖 How It Works | System overview, component cards, 3-column transfer flow, security guarantees |
+| 🔬 Cryptography Deep Dive | RSA-OAEP + AES-GCM explainers, vault format spec, encrypt/decrypt pseudocode |
+| 📲 Key Transfer (QR) | Scannable QR code of `private.pem`, SHA-256 fingerprint, Termux scan instructions |
+
+The **Live Hex Inspector** shows raw hex of the AES session key, RSA modulus, GCM nonce, and auth tag after every encryption run — with inline comments explaining each value.
 
 ---
 
-### `app.py` — Streamlit Real-Time Dashboard
-
-A dark-themed web UI that makes the cryptographic pipeline visible and educational.
-
-**Pipeline animation:**
+### `server.py` — FTP Server
 
 ```
-[ KEY_GEN ] → [ RSA_WRAP ] → [ AES_ENCRYPT ] → [ VAULT_ASSEMBLY ]
-  pending        pending          pending             pending
-     ↓  (on run)
-  active         pending          pending             pending
-     ↓
-  done ✔        active           pending             pending
-     ↓
-  done ✔        done ✔          active              pending
-     ↓
-  done ✔        done ✔          done ✔             done ✔
-```
-
-**Live Hex Inspector** shows the raw AES session key, RSA public modulus (truncated), GCM nonce, and auth tag — making the math tangible.
-
----
-
-### `server.py` — Localized FTP Server
-
-```
-Host   :  0.0.0.0    (reachable from any hotspot client)
+Host   :  0.0.0.0    (all interfaces — reachable over hotspot)
 Port   :  2121       (non-privileged, no root required)
 User   :  aryaditya
 Pass   :  5056
 Serves :  ./shared_vault/
 ```
 
-Subclasses `FTPHandler` with a custom `AuditHandler` that logs every connect, login attempt, file transfer, and logout with timestamp and source IP.
+Custom `AuditHandler` logs every connection, login attempt, file transfer, and logout with timestamp and source IP.
 
 ---
 
 ### `client.py` — Termux Android Client
 
-Designed for minimal dependencies and terminal-friendly output.
+Full animated terminal UI with ANSI colours. Key features:
 
-1. Validate `~/private.pem` exists
-2. FTP connect to `192.168.137.1:2121`
-3. List `.vault` files — auto-select if only one exists
-4. Stream download with ASCII progress bar
-5. Parse vault header → extract embedded original filename
-6. RSA-OAEP unwrap AES session key using private key
-7. AES-256-GCM decrypt + verify auth tag (raises on any tampering)
-8. Write file with its original name and extension
-9. Prompt `Open file now? [Y/N]` → `termux-open` on Y
+**Auto Network Scanner** — no hardcoded IP needed:
+- Scans `192.168.137.x`, `192.168.1.x`, `192.168.0.x`, `10.0.0.x` in parallel (60 threads)
+- Finds the laptop in under 2 seconds
+- Shows a live `Scanning 192.168.137.1–254 …` spinner while searching
+- Set `SERVER_IP = "192.168.137.1"` to skip scanning if the IP is known
+
+**Live Progress Bar** with real-time MB/s speed and ETA countdown.
+
+**Crypto Stage Animator** — 4 stages tick from `⟳` to `✔` as each operation completes.
+
+**Post-decrypt Summary Table** showing file type, size, transfer speed, AES key hex, nonce, and auth tag.
+
+---
+
+### `launch.bat` — Windows Auto Launcher
+
+Double-click to start everything. Steps it runs automatically:
+
+1. `cd /d %~dp0` — always runs from its own folder regardless of where it's launched from
+2. Checks Python is installed
+3. Creates `venv` if missing
+4. Runs `pip install -r requirements.txt --upgrade`
+5. Generates RSA keypair if `public.pem` doesn't exist yet
+6. Opens FTP server in a titled PowerShell window
+7. Opens Streamlit dashboard in a second window with `--server.headless true`
+8. Waits 5 seconds then opens `http://localhost:8501` in the browser — exactly once
 
 ---
 
@@ -304,6 +322,8 @@ python server.py
 python -m streamlit run app.py
 # Visit http://localhost:8501
 ```
+
+Or on Windows — just double-click **`launch.bat`**.
 
 ---
 
@@ -330,14 +350,14 @@ pip install -r requirements.txt
 python crypto_core.py genkeys --dir .
 ```
 
-This produces:
+Produces:
 
 ```
 public.pem    ←  safe to keep in project (used to encrypt)
 private.pem   ←  SECRET — transfer to phone, never commit to git
 ```
 
-> ⚠️ `private.pem` is your only decryption key. If lost, all vaults are permanently unrecoverable. It is blocked from git by `.gitignore`.
+> ⚠️ `private.pem` is your only decryption key. If lost, all vaults are permanently unrecoverable. Blocked from git by `.gitignore`.
 
 ### Step 3 — Enable Windows Mobile Hotspot
 
@@ -345,7 +365,7 @@ private.pem   ←  SECRET — transfer to phone, never commit to git
 Settings → Network & Internet → Mobile Hotspot → ON
 ```
 
-Hotspot gateway IP: `192.168.137.1`. Connect your Android to this network.
+Gateway IP: `192.168.137.1`. Connect your Android to this network.
 
 ### Step 4 — Start FTP Server
 
@@ -384,18 +404,18 @@ termux-setup-storage
 # Tap ALLOW when prompted
 ```
 
-### Transfer Files via USB
+### Transfer `client.py` and `private.pem`
 
-Connect phone in **File Transfer (MTP)** mode. Copy `private.pem` and `client.py` to phone Downloads, then in Termux:
+**Option A — USB (MTP):** Connect phone in File Transfer mode, copy files to Downloads, then:
 
 ```bash
 cp ~/storage/downloads/private.pem ~/private.pem
 cp ~/storage/downloads/client.py ~/client.py
 ```
 
-### Run the Client
+**Option B — QR Code:** See [QR Key Transfer](#qr-key-transfer) below — no USB needed.
 
-Make sure the laptop hotspot is active and your phone is connected to it, then:
+### Run the Client
 
 ```bash
 python client.py
@@ -404,29 +424,90 @@ python client.py
 Expected output:
 
 ```
-════════════════════════════════════════════════════
-   🛡️  AEGIS HOTSPOT VAULT — TERMUX CLIENT
-════════════════════════════════════════════════════
+  ╔═══════════════════════════════════════════════════╗
+  ║    🛡️  AEGIS HOTSPOT VAULT — SECURE CLIENT    ║
+  ║       Aryaditya Deshmukh · 23BCE5056 · VIT       ║
+  ╚═══════════════════════════════════════════════════╝
 
-[*] Connecting to 192.168.137.1:2121 …
-[✔] Connected
+  [1/5]  Checking credentials
+  ✔  Private key found  →  ~/private.pem
 
-[*] Available vaults:
-    [0] report.vault
+  [2/5]  Locating Aegis server
+  ◆  Scanning 192.168.137.1–254 …
+  ✔  Server found  →  192.168.137.1:2121
+  ✔  Connected · user=aryaditya
 
-[*] Downloading: report.vault
-  [████████████████████████████████████████]  100.0%
+  [3/5]  Scanning vault directory
+  ──────────────────────────────────────────────────
+  Available Vaults   (1 found)
+  [0]  report.vault                          44.2 KB
+  ──────────────────────────────────────────────────
 
-[✔] Downloaded 45312 bytes
-[*] Decrypting report.vault …
-[✔] GCM auth tag verified ✔
-[✔] File decrypted and saved as: report.pdf
+  [4/5]  Downloading  →  report.vault
+  [████████████████████████████████]  100.0%  1.2 MB/s  ETA 00:00
 
-════════════════════════════════════════════════════
-   Secure transfer complete. ✔
-════════════════════════════════════════════════════
+  [5/5]  Decrypting vault
+  ✔  [RSA-OAEP   ]  Unwrapping AES session key
+  ✔  [AES-GCM    ]  Decrypting ciphertext
+  ✔  [AUTH TAG   ]  Verifying 128-bit authentication tag
+  ✔  [ASSEMBLE   ]  Writing file to storage
 
-    Open file now? [Y/N]:
+  ✔  SECURE TRANSFER COMPLETE
+  File              report.pdf
+  Transfer speed    1.2 MB/s
+  Auth tag          8a3b1c2d4e5f6a7b…
+```
+
+---
+
+## QR Key Transfer
+
+The **📲 Key Transfer (QR)** tab in the dashboard displays a scannable QR code of `private.pem` — eliminating the need for USB transfer.
+
+### Scan on Termux
+
+```bash
+# Install scanner tools
+pkg install termux-tools
+
+# Scan QR from screen and save as private key
+termux-camera-photo -c 0 qr.jpg
+zbarimg qr.jpg > ~/private.pem
+```
+
+### Verify the Key Fingerprint
+
+The dashboard shows a SHA-256 fingerprint of the key. After scanning, verify it matches:
+
+```bash
+sha256sum ~/private.pem
+```
+
+> ⚠️ **Security warning:** The QR code contains your full RSA private key. Only scan it in a private environment. Anyone who photographs the screen can decrypt your vaults.
+
+---
+
+## Auto Network Scanner
+
+`client.py` automatically scans the local subnet to find the laptop's FTP server — no hardcoded IP required.
+
+**How it works:**
+
+1. Scans 4 subnets concurrently: `192.168.137.x`, `192.168.1.x`, `192.168.0.x`, `10.0.0.x`
+2. 60 parallel threads, 0.4s timeout per host
+3. Returns the first host with port 2121 open
+4. Typically finds the server in under 2 seconds
+
+**Skip scanning** (faster if IP is known) — edit the top of `client.py`:
+
+```python
+SERVER_IP = "192.168.137.1"   # Set to None to auto-scan
+```
+
+**Add custom subnets:**
+
+```python
+SCAN_SUBNETS = ["192.168.137", "10.42.0", "172.20.10"]
 ```
 
 ---
@@ -465,12 +546,15 @@ PASSIVE_PORTS = range(60000, 60100)   # Passive mode port range
 ### `client.py`
 
 ```python
-SERVER_IP     = "192.168.137.1"       # Laptop hotspot gateway
+SERVER_IP     = None                  # None = auto-scan subnets
 SERVER_PORT   = 2121                  # Must match server.py
 FTP_USER      = "aryaditya"           # Must match server.py
 FTP_PASS      = "5056"                # Must match server.py
 PRIV_KEY_PATH = "~/private.pem"       # RSA private key on phone
 OUTPUT_DIR    = "~/storage/downloads/aegis_out"
+SCAN_SUBNETS  = ["192.168.137", "192.168.1", "192.168.0", "10.0.0"]
+SCAN_TIMEOUT  = 0.4                   # Seconds per host
+SCAN_WORKERS  = 60                    # Parallel scan threads
 ```
 
 ---
@@ -516,6 +600,7 @@ OUTPUT_DIR    = "~/storage/downloads/aegis_out"
 | `pycryptodome` | ≥ 3.20.0 | BSD-2-Clause | All components |
 | `streamlit` | ≥ 1.35.0 | Apache 2.0 | `app.py` (laptop only) |
 | `pyftpdlib` | ≥ 1.5.9 | MIT | `server.py` (laptop only) |
+| `qrcode[pil]` | ≥ 7.4.2 | MIT | `app.py` QR tab (laptop only) |
 
 Termux only requires `pycryptodome`.
 
@@ -525,20 +610,9 @@ Termux only requires `pycryptodome`.
 
 1. **Single recipient** — vault is encrypted to one RSA public key only
 2. **No TLS on FTP** — vault filename and credentials visible in network captures; file content remains encrypted
-3. **Static gateway IP** — `192.168.137.1` is the Windows hotspot default; Linux hotspots may differ
-4. **In-memory processing** — very large files load fully into RAM before encryption
-5. **No key revocation** — compromised keypair has no invalidation mechanism for existing vaults
-
----
-
-## Future Improvements
-
-- [ ] TLS on FTP (`pyftpdlib` supports `TLS_FTPHandler`)
-- [ ] Multi-recipient vaults (wrap AES key to N public keys)
-- [ ] QR code key transfer (eliminate USB dependency)
-- [ ] Streaming AES-GCM for large files
-- [ ] HMAC over vault header for metadata integrity
-- [ ] Termux:Widget one-tap shortcut for vault retrieval
+3. **In-memory processing** — very large files load fully into RAM before encryption
+4. **No key revocation** — compromised keypair has no invalidation mechanism for existing vaults
+5. **QR transfer size** — very long RSA keys may produce dense QR codes; use a bright screen at full brightness for reliable scanning
 
 ---
 
@@ -552,8 +626,8 @@ Developed for the **Cryptography and Network Security (CNS)** course at **VIT Ch
 - Authenticated Encryption with Associated Data (AEAD) via AES-GCM
 - RSA-OAEP padding and semantic security over textbook RSA
 - Galois/Counter Mode: CTR-mode encryption combined with a Galois field MAC
-- Practical key management: generation, secure storage, and transport
-- Local network security: building a controlled, isolated communication channel
+- Practical key management: generation, secure storage, QR-based transport
+- Local network security: subnet scanning, isolated communication channel
 - Binary file format design for cryptographic containers
 
 ---
